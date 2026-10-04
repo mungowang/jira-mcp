@@ -1,0 +1,52 @@
+{
+  "name": "jira-server-mcp",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "MCP server for self-hosted Jira Server 8.x — entity-based core tools, plugin JSON declarations, bundled Zephyr Scale",
+  "engines": {
+    "node": ">=22.6"
+  },
+  "scripts": {
+    "start": "node bin/jira-server.mjs",
+    "test": "node --test test/*.test.mjs",
+    "verify:live": "node test/live-verify.mjs",
+    "verify:vendor": "bash scripts/verify-vendor.sh",
+    "probe:paths": "node scripts/probe-paths.mjs",
+    "tools:describe": "node scripts/dump-tools.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^3.25.76"
+  },
+  "bin": {
+    "jira-server": "bin/jira-server.mjs"
+  },
+  "license": "MIT",
+  "author": "<YOUR NAME OR ORGANIZATION>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/example/jira-server-mcp.git"
+  },
+  "homepage": "https://github.com/example/jira-server-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/example/jira-server-mcp/issues"
+  },
+  "keywords": [
+    "mcp",
+    "jira",
+    "jira-server",
+    "data-center",
+    "zephyr-scale",
+    "model-context-protocol"
+  ],
+  "files": [
+    "src",
+    "bin",
+    "tools.d",
+    "scripts",
+    "README.md",
+    "NOTICE.md",
+    "LICENSE"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "_comment": "POST with a raw object body: '{payload}' alone means 'pass the whole argument through, type preserved'.",
+  "tools": {
+    "jira_example_plugin_action": {
+      "desc": "Example: POST a payload to a plugin action endpoint",
+      "params": {
+        "name": "string",
+        "payload": "object"
+      },
+      "required": ["name"],
+      "method": "POST",
+      "path": "/rest/myplugin/latest/actions/{name}",
+      "body": "{payload}"
+    }
+  }
+}

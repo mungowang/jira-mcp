@@ -1,0 +1,12 @@
+{
+  "_comment": "Minimal read-only tool. Copy up into tools.d/ to enable. Verify the path against your instance before relying on it.",
+  "tools": {
+    "jira_example_server_time": {
+      "desc": "Example: read the server time from a plugin endpoint",
+      "readOnly": true,
+      "params": {},
+      "method": "GET",
+      "path": "/rest/api/2/serverInfo"
+    }
+  }
+}

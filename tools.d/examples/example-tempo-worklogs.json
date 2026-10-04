@@ -1,0 +1,25 @@
+{
+  "_comment": "NOT VERIFIED: GET /rest/tempo-timesheets/4/worklogs answered 405 on a real Jira 8.5.7 instance (2026-10). Find the correct path from the plugin docs or DevTools, then move this into tools.d/plugins.json.",
+  "tools": {
+    "jira_tempo_worklogs": {
+      "desc": "Query Tempo worklogs (Tempo Timesheets plugin)",
+      "readOnly": true,
+      "params": {
+        "from": "string",
+        "to": "string",
+        "projectKey": "projectKey"
+      },
+      "required": [
+        "from",
+        "to"
+      ],
+      "method": "GET",
+      "path": "/rest/tempo-timesheets/4/worklogs",
+      "query": {
+        "from": "{from}",
+        "to": "{to}",
+        "projectKey": "{projectKey}"
+      }
+    }
+  }
+}

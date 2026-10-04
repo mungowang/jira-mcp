@@ -1,0 +1,196 @@
+# Changelog
+
+## 1.0.1 (unreleased)
+
+### Third real-instance run: plugin inventory, and a placeholder bug
+
+`50 passed / 1 failed / 2 skipped`, and the plugin inventory finally came out (UPM is not readable
+with this account, so it was inferred from custom field schemas). The instance runs Jira Software,
+ScriptRunner and several Tempo modules, but **not Tempo Timesheets** - which confirms the decision
+to drop the `jira_tempo_worklogs` sample. See
+[`docs/instance-profile.example.md`](docs/instance-profile.example.md).
+
+Fixed:
+
+- **`download_attachment` was called with `attachmentId: 0`.** Discovery leaves the field as
+  `null` when a test case has no attachments, and `null !== undefined` made the guard pass, so
+  the id became `Number(null)`. Argument synthesis now uses a `need()` guard throughout: a value
+  that was not discovered means **skip the tool**, never synthesise a placeholder. A test sweeps
+  every read-only tool with an empty context and fails if any of them produces an input-validation
+  error - which is what would have caught this.
+- Zephyr attachment discovery now tries the test case, then the run, then a test result, because
+  the sampled case had none.
+- The probe candidate list now covers the Tempo modules this instance actually has.
+
+### Second real-instance run (1175 upstream tests still green)
+
+```
+109 tools total (53 read-only)
+ok  Jira 8.5.7; projects listed; one issue, one board and one sprint discovered
+ok  every Zephyr tool, including get_test_case / get_test_run{,_results,_summary} /
+    get_latest_result_for_test_case / get_test_plan / get_folder_tree / get_status_options /
+    get_custom_field_definitions / find_jira_user / health_check
+ok  jira_list_backlog (fixed after the first run)
+48 passed / 3 failed / 2 skipped
+```
+
+Fixed from that run:
+
+- **`jira_get_attachment_meta` failed output validation.** The assumed shape did not match what
+  8.5.7 returns. New rule, now enforced by a test: **only keys observed on a real instance may be
+  `required`**; `attachment`, `attachmentList`, `createdIssue`, `comment` and `worklog` require
+  nothing and merely document their properties. A required key the server does not send turns a
+  working call into a protocol error, which is strictly worse than a vaguer schema.
+- **`jira_list_plugins` gave up too early.** `/rest/plugins/1.0/` answers 406 and
+  `/rest/plugins/1.0` answers 404 for a non-admin account on this instance. It now reports every
+  attempt and falls back to inferring plugin keys from custom field schemas - readable with
+  ordinary permissions, and enough to see which vendors are installed (no versions though).
+- **`download_attachment` was given a Jira attachment id.** Zephyr addresses attachments by its
+  own numeric id / url from `list_attachments`; a Jira id is a 404 on
+  `/rest/tests/1.0/attachment/{id}`. Discovery now resolves a Zephyr attachment separately.
+
+Failure output on the console was widened to 400 characters, because these runs are pasted back
+for diagnosis and a one-line excerpt is not enough.
+
+### Verification coverage (the reason for most of this section)
+
+A live run needs access to the target instance, so a single run has to cover as much as
+possible. The verification script now **discovers** the ids that unlock
+otherwise-skipped tools: attachment id, JSM service desk id, Zephyr test case / cycle / plan
+keys, board and sprint. Against the offline mock the read-only sweep went from
+**40 passed / 15 skipped** to **52 passed / 1 skipped** (the remaining skip is
+`download_feature_files`, which pulls an archive and is left to a manual run).
+
+The discovery logic lives in `test/discover.mjs` with its own tests, because a silent
+regression there would quietly shrink the verified surface.
+
+Found while making the mock faithful - the Zephyr Scale search endpoints answer a **bare
+array**, and the vendored mapper discards anything else (`Array.isArray(raw) ? raw : []`).
+The mock was answering `{values: [...]}`, which is exactly why the discovery chain could not
+be exercised offline before.
+
+`VERIFY_PROBE_PATHS=1` folds the plugin path probe into the same run, so one run produces both
+the per-tool results and the candidate plugin paths in a single report. The
+candidate list lives in `test/probe-candidates.mjs`, shared with `scripts/probe-paths.mjs`.
+Failure details in the report were widened to 500 characters, because the fix loop happens
+offline and the report has to carry enough to diagnose without another run.
+
+### First verification against a real instance
+
+Run against a Jira Server **8.5.7** over Basic Auth with a normal (non-admin) account:
+
+```
+110 tools total (54 read-only)
+ok  Jira 8.5.7  deployment=Server  build=805007
+ok  current user, projects, one issue, one board and one sprint
+ok  38 read-only tools
+x   3  (all fixed below)
+```
+
+Notable confirmations:
+
+- **Basic Auth works** with a local Jira account - no SSO/CAPTCHA obstacle on this instance.
+- **Zephyr Scale is installed and working**: `health_check`, `search_test_cases`,
+  `search_test_runs`, `search_test_plans`, `get_folder_tree`, `get_status_options`,
+  `get_custom_field_definitions`, `list_environments` and `find_jira_user` all answered, so
+  the vendored integration is confirmed on the target server, not just in tests.
+
+Fixed as a result:
+
+- **`jira_list_backlog` failed output validation.** The Agile backlog answers with `issues`;
+  only boards and sprints use the `values` envelope. Added `E.agileIssues` for board issues,
+  sprint issues and the backlog, and made the mock return the real shape - the mock returning
+  `{values:[]}` for the backlog is precisely why this was not caught offline.
+- **`jira_list_plugins` returned a bare `406`.** Jira Server answers `/rest/plugins/1.0/` with
+  an empty 406 when the account is not an administrator. `explain()` now recognises 406, the
+  tool tries both spellings of the path, and `verify:live` records an administrator-rights
+  refusal as a skip instead of a failure.
+- **The Tempo sample endpoint was wrong.** `GET /rest/tempo-timesheets/4/worklogs` answers
+  `405` on this instance. It has been moved out of `tools.d/plugins.json` into
+  `tools.d/examples/example-tempo-worklogs.json` with the observation recorded; a test now
+  asserts it stays disabled until the real path is confirmed.
+- Added `T.numericId` to the type registry and used it for `serviceDeskId`, keeping the
+  "JSON declarations reuse registry types" property after Tempo was removed.
+
+### Added
+
+- **`returns` in the plugin DSL.** JSON-declared tools were second-class: they could declare
+  their inputs but never their output, so they got no `outputSchema` and no `structuredContent`
+  while code-declared tools did. A declaration may now name an entity type
+  (`"returns": "paged"`), mirroring how `params` names an input type, and `anyObject` was added
+  to `src/entity-types.ts` as the honest escape hatch when a plugin's payload shape is unknown.
+  An unknown name fails at startup with the list of valid ones.
+- **`npm run tools:describe`** prints the schema structure of every tool - one line per tool with
+  inputs (required starred), the declared output, whether it came from `tools.d/` and whether it
+  is read-only or destructive; `--json` emits the full `inputSchema` / `outputSchema`.
+
+- `npm run probe:paths` / `scripts/probe-paths.mjs` — GET-probes the common REST paths of
+  Tempo, ScriptRunner, JSM, Zephyr Scale, Xray, Zephyr Squad, Structure and Insight, prints
+  the status code of each, and re-probes with POST when a path answers 405. Nothing is
+  written; it exists so the correct plugin path can be found instead of guessed.
+
+54 tests.
+
+## 1.0.0
+
+First production release: one process, one MCP server, 110 tools.
+
+### Tool surface
+
+- **Core (56 `jira_*` tools), organised by entity** — one file per entity under `src/entities/`:
+  issue, comment, worklog, attachment, project, user, link, watcher, meta, agile.
+  Agile covers boards, sprints, backlogs, board/sprint issues, and moving issues between
+  them; issue links cover both issue-to-issue links and remote (Confluence) links;
+  `jira_get_issue` takes `expand` so changelog and rendered fields come back in one call.
+- **Zephyr Scale (54 tools), vendored** from `zephyr-scale-mcp` @ `9c43dc5` (MIT) into
+  `src/entities/zephyr/` and mounted on the same server. 42 tools by default; the other 12
+  come from Zephyr's internal API and require `ZEPHYR_ALLOW_INTERNAL_API=true`.
+- **`jira_request`** as a deliberate escape hatch for plugin modules with no dedicated tool.
+
+### Design
+
+- Field knowledge is read from Jira at runtime (`jira_describe_create` / `jira_describe_edit`)
+  instead of being mapped in code, so custom and plugin fields need no code changes.
+- Write payloads pass `fields` through verbatim; business aliases are translated to field ids
+  just before the request.
+- Three separated layers: the Zod type registry (`src/types.ts`), plugin declarations
+  (`tools.d/*.json`), and Jira metadata.
+- Return types (`src/entity-types.ts`) produce MCP `outputSchema` + `structuredContent`
+  for the 25 tools whose response shape is stable.
+- `tools.d/README.md` documents the declaration DSL, its validation rules, and how to find a
+  plugin's REST path; `tools.d/examples/` ships three templates that are deliberately not
+  auto-loaded (a test keeps them valid and keeps them unregistered).
+- `readOnlyHint` / `destructiveHint` annotations on every tool (54 read-only, 15 destructive).
+
+### Reliability
+
+- Request timeout (`JIRA_TIMEOUT_MS`), `Retry-After`-aware retries (`JIRA_MAX_RETRIES`),
+  and Jira errors translated into actionable messages (401 → SSO/CAPTCHA, 400 screen errors →
+  name the field and point at the describe tools, plugin-path 404 → check the plugin).
+- Self-signed certificates via `JIRA_TLS_REJECT_UNAUTHORIZED` / `JIRA_SSL_VERIFY`.
+- Plugin declarations are validated at startup and report the offending file and key.
+- `jira.config.json` resolves relative to the module, not the cwd, so embedding works.
+- A read-only switch (`JIRA_READ_ONLY`) that constrains core and Zephyr alike.
+
+### Fixed during development
+
+- Empty `204` responses produced `text: undefined`, which failed MCP result validation —
+  every delete/update tool would have broken against a real instance.
+- `jiraUpload` bypassed path resolution and posted to `/issue/...` without the `/rest/api/2`
+  prefix.
+- `describe_*` results were JSON-escaped instead of being handed to the model verbatim.
+- `jira.config.json` was read relative to the cwd, so aliases silently vanished when the
+  server was started from another directory.
+
+### Tests
+
+- `npm test` — 54 cases: contract, transport, output types, config, 8.5.7 compatibility.
+- `test/compat.test.mjs` guards the 8.5.7 promise: no source or declaration may reference
+  `/rest/api/3`, and every request a tool makes must land on a v2/agile/declared-plugin path.
+- `npm run verify:vendor` — the upstream Zephyr suite against the vendored source:
+  1175 passed, 0 failed.
+- `npm run verify:live` — read-only verification of every read-only tool against a real
+  instance, writing `verify-report.md`. With `VERIFY_WRITE=1 VERIFY_PROJECT=<KEY>` it also
+  exercises the write path on a throwaway probe issue (created and deleted in a `finally`),
+  covering comments, worklogs, watchers, attachments, links, remote links and transitions.
+  The write mode has no default project and refuses to run without an explicit one.

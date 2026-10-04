@@ -1,0 +1,20 @@
+{
+  "_comment": "Path placeholders + query params + required list. 'projectKey' reuses the registry type, so it inherits the regex and description.",
+  "tools": {
+    "jira_example_project_issues": {
+      "desc": "Example: list issues of a project through a plugin endpoint",
+      "readOnly": true,
+      "params": {
+        "projectKey": "projectKey",
+        "maxResults": "number"
+      },
+      "required": ["projectKey"],
+      "method": "GET",
+      "path": "/rest/api/2/search",
+      "query": {
+        "jql": "project = {projectKey}",
+        "maxResults": "{maxResults}"
+      }
+    }
+  }
+}

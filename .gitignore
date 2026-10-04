@@ -1,0 +1,11 @@
+node_modules/
+*.log
+verify-report.md
+
+# A real instance profile is yours, not the repo's - keep the example, not the data.
+instance-profile.md
+
+# macOS metadata - never belongs in a repository
+.DS_Store
+._*
+.!*!.DS_Store

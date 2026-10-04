@@ -1,0 +1,125 @@
+// Offline mock Jira. The goal is to be faithful to the real *status codes and response
+// shapes*, not to simulate business logic - especially the 204 empty responses on
+// PUT/DELETE and the {id,key,self} body of POST /issue. Those shapes are checked by
+// outputSchema, so a mock that drifts from the real thing would hide real bugs.
+import http from 'node:http';
+
+const j = (res, body, code = 200) => {
+  res.statusCode = code;
+  res.setHeader('content-type', 'application/json');
+  res.end(JSON.stringify(body));
+};
+const noContent = (res) => { res.statusCode = 204; res.end(); };
+
+const CREATEMETA = { projects: [{ key: 'PROJ', issuetypes: [{ name: 'Task', fields: {
+  summary: { required: true, name: 'Summary', schema: { type: 'string' } },
+  customfield_10123: { required: true, name: 'Department', schema: { type: 'option', custom: 'select', customId: 10123 },
+    allowedValues: [{ id: '10101', value: 'Platform' }, { id: '10102', value: 'Infrastructure' }] },
+  assignee: { required: false, name: 'Assignee', schema: { type: 'user' }, allowedValues: [{ name: 'alice', displayName: 'Alice' }] },
+  customfield_10777: { required: false, name: 'Release date', schema: { type: 'date' } },
+  attachment: { required: false, name: 'Attachment', schema: { type: 'array', items: 'attachment' } },
+} }] }] };
+
+const EDITMETA = { fields: {
+  summary: { required: true, name: 'Summary', schema: { type: 'string' } },
+  customfield_10123: { required: false, name: 'Department', schema: { type: 'option' }, allowedValues: [{ id: '10101', value: 'Platform' }] },
+  customfield_10999: { required: false, name: 'Story points', schema: { type: 'number' } },
+} };
+
+export function startMock(port = 18080) {
+  const log = [];
+  const server = http.createServer((req, res) => {
+    let raw = '';
+    req.on('data', (d) => (raw += d));
+    req.on('end', () => {
+      log.push({ method: req.method, url: req.url, body: raw });
+      if (!(req.headers.authorization || '').startsWith('Basic ')) return j(res, { errorMessages: ['no basic auth'] }, 401);
+      const u = req.url.split('?')[0];
+      const M = req.method;
+
+      // -- writes: the real instance answers 204 or 201/200 with an entity ------
+      if (M === 'POST' && u === '/rest/api/2/issue') return j(res, { id: '10001', key: 'PROJ-1', self: 'http://x/rest/api/2/issue/10001' }, 201);
+      if (M === 'PUT' && u === '/rest/api/2/issue/PROJ-1') return noContent(res);
+      if (M === 'DELETE') return noContent(res);
+      if (M === 'PUT' && u === '/rest/api/2/issue/PROJ-1/assignee') return noContent(res);
+      if (M === 'POST' && u === '/rest/api/2/issue/PROJ-1/transitions') return noContent(res);
+      if (M === 'POST' && u === '/rest/api/2/issueLink') return j(res, undefined, 201);
+      if (M === 'POST' && /\/rest\/agile\/1\.0\/(sprint\/\d+|backlog)\/issue$/.test(u)) return noContent(res);
+      if (M === 'POST' && /\/issue\/PROJ-1\/remotelink$/.test(u)) return j(res, { id: 7, self: 'http://x/rest/api/2/issue/PROJ-1/remotelink/7' }, 201);
+      if (M === 'POST' && /\/issue\/PROJ-1\/attachments$/.test(u)) return j(res, [{ id: '9', filename: 'a.txt', size: 5 }], 201);
+      if (M === 'POST' && /\/issue\/PROJ-1\/watchers$/.test(u)) return noContent(res);
+      if (M === 'POST' && u === '/rest/api/2/issue/PROJ-1/comment') return j(res, { id: '1', body: JSON.parse(raw || '{}').body ?? 'hi', author: { name: 'alice' } }, 201);
+      if (M === 'PUT' && /\/comment\/\d+$/.test(u)) return j(res, { id: '1', body: JSON.parse(raw || '{}').body ?? 'hi' });
+      if (M === 'POST' && u === '/rest/api/2/issue/PROJ-1/worklog') {
+        const b = JSON.parse(raw || '{}');
+        return j(res, { id: '1', timeSpentSeconds: b.timeSpentSeconds ?? 60, started: b.started }, 201);
+      }
+      if (M === 'PUT' && /\/worklog\/\d+$/.test(u)) return j(res, { id: '1', timeSpentSeconds: 60 });
+
+      // -- reads ---------------------------------------------------------------
+      if (u === '/rest/api/2/field') return j(res, [
+        { id: 'summary', name: 'Summary' }, { id: 'customfield_10123', name: 'Department', custom: true },
+        { id: 'customfield_10777', name: 'Release date', custom: true }]);
+      if (u.includes('/createmeta')) return j(res, CREATEMETA);
+      if (u.includes('/editmeta')) return j(res, EDITMETA);
+      if (u === '/rest/api/2/myself') return j(res, { name: 'alice', displayName: 'Alice', emailAddress: 'a@x.com' });
+      if (u === '/rest/api/2/serverInfo') return j(res, { version: '8.5.7', versionNumbers: [8, 5, 7], deploymentType: 'Server' });
+      if (u === '/rest/plugins/1.0/') return j(res, { plugins: [{ key: 'com.example.plugin', name: 'Example Plugin', version: '1.0' }] });
+      if (u === '/rest/api/2/project') return j(res, [{ key: 'PROJ', id: '10000', name: 'Demo' }]);
+      if (u === '/rest/api/2/search') return j(res, { startAt: 0, maxResults: 50, total: 1,
+        issues: [{ id: '1', key: 'PROJ-1', fields: { summary: 't', customfield_10123: { value: 'Platform' } } }] });
+      if (u === '/rest/agile/1.0/board') return j(res, { values: [{ id: 7, name: 'B' }], isLast: true });
+      if (/^\/rest\/agile\/1\.0\/board\/\d+\/sprint$/.test(u)) return j(res, { values: [{ id: 42, name: 'Sprint 1', state: 'active', originBoardId: 7 }], isLast: true });
+      // The backlog is an issue list, not a `values` envelope. A mock that got this wrong
+      // is exactly what let the real-instance failure through.
+      if (/^\/rest\/agile\/1\.0\/board\/\d+\/backlog$/.test(u)) return j(res, { expand: 'names', startAt: 0, maxResults: 50, total: 0, issues: [] });
+      if (u === '/rest/api/2/issue/PROJ-1/comment') return j(res, { comments: [{ id: '1', body: 'hi' }], total: 1 });
+      if (u === '/rest/api/2/issue/PROJ-1/worklog') return j(res, { worklogs: [{ id: '1', timeSpentSeconds: 60 }], total: 1 });
+      if (u === '/rest/api/2/issue/PROJ-1/transitions') return j(res, { transitions: [{ id: '31', name: 'Done' }] });
+      if (u === '/rest/api/2/issue/PROJ-1/remotelink') return j(res, [{ id: 7, object: { url: 'http://wiki/x', title: 'Spec' } }]);
+      if (/^\/rest\/agile\/1\.0\/sprint\/\d+$/.test(u)) return j(res, { id: 42, name: 'Sprint 1', state: 'active', originBoardId: 7 });
+      if (/^\/rest\/agile\/1\.0\/(board|sprint)\/\d+\/issue$/.test(u)) return j(res, { startAt: 0, maxResults: 50, total: 1,
+        issues: [{ id: '1', key: 'PROJ-1', fields: { summary: 't' } }] });
+
+      if (u === '/rest/api/2/issueLinkType') return j(res, { issueLinkTypes: [{ id: '10000', name: 'Blocks', inward: 'is blocked by', outward: 'blocks' }] });
+      if (u === '/rest/api/2/issue/PROJ-1/watchers') return j(res, { isWatching: true, watchCount: 1, watchers: [{ name: 'alice' }] });
+      if (u === '/rest/api/2/attachment/9') return j(res, { id: '9', filename: 'a.txt', size: 3, content: 'http://x/secure/attachment/9' });
+      if (u.startsWith('/rest/api/2/user/search') || u.startsWith('/rest/api/2/user/assignable'))
+        return j(res, [{ name: 'alice', displayName: 'Alice' }]);
+      if (u.startsWith('/rest/api/2/user')) return j(res, { name: 'alice', displayName: 'Alice' });
+      if (/^\/rest\/api\/2\/project\/[^/]+\/(components|versions|statuses)$/.test(u)) return j(res, [{ id: '1', name: 'x' }]);
+      if (/^\/rest\/api\/2\/project\/[^/]+$/.test(u)) return j(res, { id: '10000', key: 'PROJ', name: 'Demo', projectTypeKey: 'software' });
+      // The Zephyr search endpoints answer a BARE ARRAY; the vendored mapper drops anything
+      // that is not an array, which is how a wrong mock shape stayed invisible.
+      if (/^\/rest\/atm\/1\.0\/testcase\/search$/.test(u)) return j(res, [{ id: 1, key: 'PROJ-T1', name: 'probe', projectKey: 'PROJ' }]);
+      if (/^\/rest\/atm\/1\.0\/testrun\/search$/.test(u)) return j(res, [{ id: 2, key: 'PROJ-R1', name: 'probe run', projectKey: 'PROJ' }]);
+      if (/^\/rest\/atm\/1\.0\/testplan\/search$/.test(u)) return j(res, [{ id: 3, key: 'PROJ-P1', name: 'probe plan', projectKey: 'PROJ' }]);
+      if (u === '/rest/servicedeskapi/servicedesk') return j(res, { size: 1, values: [{ id: '5', projectKey: 'PROJ' }] });
+      // JSM page shape: {size, startAt, isLast, values}. A generic {ok:true} here would not
+      // satisfy the declared `paged` return type - and that is the point of declaring one.
+      if (/^\/rest\/servicedeskapi\/servicedesk\/[^/]+\/queue$/.test(u)) {
+        return j(res, { size: 1, startAt: 0, isLast: true, values: [{ id: '1', name: 'Default queue' }] });
+      }
+      if (/^\/rest\/atm\/1\.0\/testcase\/[^/]+\/attachments$/.test(u)) {
+        return j(res, [{ id: 77, name: 'evidence.txt', url: '/rest/tests/1.0/attachment/77' }]);
+      }
+      if (/^\/rest\/tests\/1\.0\/attachment\/\d+$/.test(u)) {
+        res.setHeader('content-type', 'text/plain');
+        return res.end('probe attachment content\n');
+      }
+      if (u.startsWith('/rest/atm/1.0') || u.startsWith('/rest/tests/1.0')) return j(res, { id: 1, key: 'PROJ-T1', values: [], items: [] });
+
+      // Generic issue route last, so specific sub-resources above win.
+      if (u.startsWith('/rest/api/2/issue/PROJ-1')) return j(res, { id: '1', key: 'PROJ-1',
+        fields: { summary: 't', attachment: [{ id: '9', filename: 'a.txt' }] } });
+
+      // The body is multipart, not JSON - never JSON.parse it blindly.
+      let parsed = null;
+      if (raw) { try { parsed = JSON.parse(raw); } catch { parsed = '<non-json body>'; } }
+      return j(res, { ok: true, method: M, path: req.url, received: parsed });
+    });
+  });
+  return new Promise((ok) => server.listen(port, () => ok({ server, log, port })));
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) startMock().then(() => console.log('[mock] up'));

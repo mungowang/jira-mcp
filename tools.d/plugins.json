@@ -1,0 +1,31 @@
+{
+  "tools": {
+    "jira_scriptrunner_run": {
+      "desc": "Run a ScriptRunner custom endpoint",
+      "params": {
+        "name": "string",
+        "payload": "object"
+      },
+      "required": [
+        "name"
+      ],
+      "method": "POST",
+      "path": "/rest/scriptrunner/latest/custom/{name}",
+      "body": "{payload}",
+      "returns": "anyObject"
+    },
+    "jira_jsm_queues": {
+      "desc": "List Jira Service Management queues",
+      "readOnly": true,
+      "params": {
+        "serviceDeskId": "numericId"
+      },
+      "required": [
+        "serviceDeskId"
+      ],
+      "method": "GET",
+      "path": "/rest/servicedeskapi/servicedesk/{serviceDeskId}/queue",
+      "returns": "paged"
+    }
+  }
+}
