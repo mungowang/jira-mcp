@@ -292,7 +292,7 @@ schema 有据可依而不是靠猜。它采集:
 
 | 路径 | 内容 | 能否外传 |
 |---|---|---|
-| `capture/report.md` | 键名、类型、数组长度、出现次数。**所有值都被抹掉** | ✅ 可以贴出来 |
+| `capture/report.md` | 键名、类型、数组长度、出现/有值次数。**字段值全部抹掉** | ⚠️ 见下 |
 | `capture/summary.json` | 同样内容的机器可读版 | ✅ |
 | `capture/raw/*.json` | **原始 payload,含真实值** | ❌ 已在 `.gitignore` 里 |
 
@@ -311,6 +311,10 @@ object
 | `summary` | 2/2 | string |
 | `customfield_10123` | 1/2 | object{value} |
 ```
+
+报告里**没有字段值**,但**有字段名**(真机上是业务术语)和采样的标识符(项目 key、issue key、board/sprint id、
+Zephyr key)。如果你要把报告公开,加 `CAPTURE_REDACT=1`,标识符会变成占位符;字段名保留——没有它,字段 id
+就没法对应到含义。
 
 `*` = 该键在**每一次**采样里都出现(**只有一个样本时不会打星**,那只代表"只采了一次",不代表不稳定)。
 **注意报告里有字段名**(真机上就是业务术语),值没有。接在 `verify:live` 后面跑也可以:加 `CAPTURE=1`。

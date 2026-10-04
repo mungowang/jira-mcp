@@ -140,6 +140,13 @@ Fixed as a result:
   with `null` - so the report also counts **`filled`** (a non-null, non-empty value), which is the
   figure that identifies a custom field as actually in use.
 
+### The report's own claim, checked
+
+The report says "no values", and that was verified on real data rather than trusted: the issue
+key was found in it, because the header deliberately lists the sampled identifiers. The wording is
+now precise - **no field values**, but field *names* and the sampled identifiers are present - and
+`CAPTURE_REDACT=1` replaces the identifiers with placeholders for a publishable report.
+
 ### Changed (from real captured data)
 
 `src/entity-types.ts` grew from 20 to 30 entities and every existing one was corrected against a

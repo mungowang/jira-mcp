@@ -149,6 +149,16 @@ describe('capture against a real-shaped instance', () => {
     assert.match(result.report, /satisfy the entity schema/);
   });
 
+  test('CAPTURE_REDACT removes the identifiers, leaving only names and structure', () => {
+    const redacted = buildReport({ captured: result.captured, payloads: result.payloads, ctx: result.ctx, redact: true });
+    for (const v of [result.ctx.projectKey, result.ctx.issueKey, String(result.ctx.boardId), result.ctx.testCaseKey]) {
+      if (!v) continue;
+      assert.ok(!redacted.includes(`\`${v}\``), `redacted report must not contain the identifier ${v}`);
+    }
+    assert.match(redacted, /Context: project `<key>`/);
+    assert.match(redacted, /no field values/);
+  });
+
   test('the machine-readable summary mirrors the report shapes', () => {
     const s = buildSummary({ captured: result.captured, payloads: result.payloads });
     assert.ok(s.issuePresence.total >= 1);

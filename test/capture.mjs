@@ -381,17 +381,26 @@ export function issuePresence(payloads) {
 
 const mm = (n) => String(n).padStart(2, '0');
 
-export function buildReport({ captured, payloads, ctx, when = new Date() }) {
+/**
+ * @param redact replace the instance identifiers (project/issue/board/sprint/Zephyr keys) with
+ *   placeholders, so the report can be published. Field *names* are kept either way: they are
+ *   schema metadata, and without them a field id cannot be mapped to its meaning.
+ */
+export function buildReport({ captured, payloads, ctx, when = new Date(), redact = false }) {
   const stamp = `${when.getFullYear()}-${mm(when.getMonth() + 1)}-${mm(when.getDate())} ${mm(when.getHours())}:${mm(when.getMinutes())}`;
   const lines = [];
 
   lines.push('# Instance structure capture', '');
   lines.push(`Captured ${stamp}. Every value is stripped; only keys, types and counts remain.`, '');
   lines.push(`- Tools captured: ${captured.filter((c) => !c.failed).length} ok, ${captured.filter((c) => c.failed).length} failed`);
-  lines.push(`- Context: project \`${ctx.projectKey ?? '-'}\`, issue \`${ctx.issueKey ?? '-'}\`, board \`${ctx.boardId ?? '-'}\`, sprint \`${ctx.sprintId ?? '-'}\``);
-  lines.push(`- Zephyr keys: test case \`${ctx.testCaseKey ?? '-'}\`, cycle \`${ctx.testRunKey ?? '-'}\`, plan \`${ctx.testPlanKey ?? '-'}\``, '');
-  lines.push('> This report contains **no values** - they are replaced by types, key names and counts.');
-  lines.push('> It does contain *field names*, which on a real instance are business terminology.', '');
+  const id = (v) => (v === null || v === undefined || v === '' ? '-' : redact ? `<${typeof v === 'number' ? 'id' : 'key'}>` : v);
+  lines.push(`- Context: project \`${id(ctx.projectKey)}\`, issue \`${id(ctx.issueKey)}\`, board \`${id(ctx.boardId)}\`, sprint \`${id(ctx.sprintId)}\``);
+  lines.push(`- Zephyr keys: test case \`${id(ctx.testCaseKey)}\`, cycle \`${id(ctx.testRunKey)}\`, plan \`${id(ctx.testPlanKey)}\``, '');
+  lines.push('> This report contains **no field values** - they are replaced by types, key names and counts.');
+  lines.push('> What it does contain: *field names* (business terminology on a real instance) and the');
+  lines.push(redact
+    ? '> sampled identifiers have been replaced with placeholders (`CAPTURE_REDACT=1`).'
+    : '> sampled identifiers above. Set `CAPTURE_REDACT=1` to replace those with placeholders.', '');
   lines.push('> `*` marks a key present in **every** sample of its object. It is only shown where a');
   lines.push('> section had more than one sample - array items, or the multi-sample sections below - so');
   lines.push('> the absence of a star on a single-object payload means "only sampled once", not "unstable".', '');

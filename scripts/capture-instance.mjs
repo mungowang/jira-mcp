@@ -69,7 +69,7 @@ try {
   const { captured, payloads } = await captureInstance(srv, ctx, { outDir, limit, log: (l) => console.log(l) });
 
   mkdirSync(outDir, { recursive: true });
-  const report = buildReport({ captured, payloads, ctx });
+  const report = buildReport({ captured, payloads, ctx, redact: process.env.CAPTURE_REDACT === '1' });
   writeFileSync(resolve(outDir, 'report.md'), report);
   writeFileSync(resolve(outDir, 'summary.json'), JSON.stringify(buildSummary({ captured, payloads }), null, 2));
 

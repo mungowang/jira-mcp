@@ -151,7 +151,7 @@ if (process.env.CAPTURE === '1') {
     log: (l) => console.log(l),
   });
   mkdirSync(outDir, { recursive: true });
-  writeFileSync(resolve(outDir, 'report.md'), buildReport({ captured, payloads, ctx }));
+  writeFileSync(resolve(outDir, 'report.md'), buildReport({ captured, payloads, ctx, redact: process.env.CAPTURE_REDACT === '1' }));
   writeFileSync(resolve(outDir, 'summary.json'), JSON.stringify(buildSummary({ captured, payloads }), null, 2));
   console.log(`  ${captured.filter((c) => !c.failed).length}/${captured.length} captured -> ${outDir}/report.md (share this) + ${outDir}/raw/ (do NOT commit)`);
 }
