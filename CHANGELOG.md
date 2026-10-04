@@ -114,6 +114,14 @@ Fixed as a result:
 
 ### Added
 
+- **A bad `JIRA_BASE_URL` now says what is wrong.** It used to surface only as `fetch failed` or
+  `Failed to parse URL from ...` inside the first call, which says nothing about the cause and is
+  especially confusing when a host injects the variable from a secret store. `baseUrlProblem()`
+  classifies it - empty, an unresolved `${...}` placeholder that was passed through instead of
+  being substituted, a bare `host:port` or `/rest/...` path, or an unparseable URL - and the server
+  warns at startup and fails each call with that reason. The value itself is never echoed, because
+  such a host treats it as a credential and masks it anyway.
+
 - **The capture checks the schemas against real data.** Each captured payload is mapped to the
   entity it should satisfy and validated, so `src/entity-types.ts` is no longer documentation
   that can drift: a wrong assumption shows up as a failed check. `--check <dir>` re-runs those

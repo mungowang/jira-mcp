@@ -7,6 +7,7 @@ import { registerAll } from './tool.ts';
 import { entities } from './entities/index.ts';
 import { toolsFromJson } from './jsonTools.ts';
 import { registerZephyr } from './entities/zephyr/register.ts';
+import { baseUrlProblem } from './jira.ts';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const TOOLS_DIR = resolve(ROOT, 'tools.d');
@@ -39,8 +40,14 @@ registerAll(server, [...entities, jsonTools], { readOnly: process.env.JIRA_READ_
 // 2) Zephyr Scale (skipped when not configured).
 const zephyr = registerZephyr(server);
 
+// A bad base used to surface only as `fetch failed` deep inside the first call. Say it up front,
+// and say it without quoting the value (a host may inject it from a secret store and mask it).
+const baseProblem = baseUrlProblem();
+if (baseProblem !== null) process.stderr.write(`[jira-server] WARN ${baseProblem}\n`);
+
 process.stderr.write(
   `[jira-server] started; zephyr: ${zephyr.enabled ? `${zephyr.tools} tools @ ${zephyr.baseUrl}` : `off (${zephyr.reason})`}` +
+  `${baseProblem !== null ? '; BASE URL UNUSABLE (see WARN above)' : ''}` +
   `${process.env.JIRA_READ_ONLY === 'true' ? '; READ-ONLY' : ''}\n`,
 );
 

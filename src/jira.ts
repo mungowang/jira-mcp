@@ -12,6 +12,39 @@ if (process.env.JIRA_TLS_REJECT_UNAUTHORIZED === 'false' || process.env.JIRA_SSL
  */
 
 const BASE = (process.env.JIRA_BASE_URL ?? '').replace(/\/+$/, '');
+
+/**
+ * Why JIRA_BASE_URL cannot be used, or null when it looks usable.
+ *
+ * Exists because a bad base used to surface as `fetch failed` or `Failed to parse URL from ...`,
+ * which says nothing about the cause. A host that injects the base from a secret store can pass
+ * the reference through unresolved, and that looks exactly like a typo.
+ *
+ * The value itself is never echoed: such a host treats the base URL as a credential and masks it
+ * in logs, so quoting it would only produce `[redacted]`-style noise.
+ */
+export function baseUrlProblem(raw: string | undefined = process.env.JIRA_BASE_URL): string | null {
+  const value = (raw ?? '').trim();
+  if (value === '') {
+    return 'JIRA_BASE_URL is empty. Set it to the instance root, e.g. http://jira.example.com:8080';
+  }
+  if (value.includes('${')) {
+    return 'JIRA_BASE_URL still contains an unresolved ${...} placeholder. The client passed the '
+      + 'reference through instead of resolving it to a value - check how the server is launched '
+      + '(a `${env:NAME}` / `${credential:NAME}` reference must be resolved before spawn)';
+  }
+  if (!/^https?:\/\//i.test(value)) {
+    return 'JIRA_BASE_URL must be an absolute URL starting with http:// or https:// '
+      + '(a bare host:port is not enough, and it is not a /rest/... path)';
+  }
+  try {
+    new URL(value);
+  } catch {
+    return 'JIRA_BASE_URL is not a parseable URL (check for stray spaces or quotes)';
+  }
+  return null;
+}
+
 const AUTH = process.env.JIRA_PAT
   ? `Bearer ${process.env.JIRA_PAT}`
   : 'Basic ' + Buffer.from(`${process.env.JIRA_USERNAME}:${process.env.JIRA_PASSWORD}`).toString('base64');
@@ -91,6 +124,10 @@ export async function jira<T = unknown>(
   method: string, path: string,
   opts: { query?: Record<string, unknown>; body?: unknown } = {},
 ): Promise<T> {
+  // Classify a bad base before spending a request: fetch's own message for this is useless.
+  const problem = baseUrlProblem();
+  if (problem !== null) throw new Error(`Jira ${method} ${path}: ${problem}`);
+
   const url = resolveUrl(path, opts.query);
   let lastErr: unknown;
 
@@ -131,6 +168,9 @@ export async function jira<T = unknown>(
 
 /** Multipart upload (Jira attachments require X-Atlassian-Token: no-check). */
 export async function jiraUpload(path: string, data: Uint8Array, filename: string): Promise<unknown> {
+  const problem = baseUrlProblem();
+  if (problem !== null) throw new Error(`Jira upload ${path}: ${problem}`);
+
   const fd = new FormData();
   fd.append('file', new Blob([data as never]), filename);
   let res: Response;

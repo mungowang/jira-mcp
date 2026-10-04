@@ -12,7 +12,7 @@ process.env.JIRA_PASSWORD = 's3cretlong';
 process.env.JIRA_TIMEOUT_MS = '250';
 process.env.JIRA_MAX_RETRIES = '2';
 
-const { jira, explain, resolveUrl } = await import('../src/jira.ts');
+const { jira, explain, resolveUrl, baseUrlProblem } = await import('../src/jira.ts');
 
 let server;
 before(async () => {
@@ -146,5 +146,42 @@ describe('error translation', () => {
       assert.match(e.message, /screen/i);
       return true;
     });
+  });
+});
+
+describe('base URL validation', () => {
+  // A bad base used to surface only as `fetch failed` / `Failed to parse URL`, which says nothing
+  // about the cause. These cases are the ones actually seen when a host injects the base from a
+  // secret store, or when the operator writes a bare host:port.
+  test('accepts an absolute http(s) URL', () => {
+    assert.equal(baseUrlProblem('http://jira.example.com:8080'), null);
+    assert.equal(baseUrlProblem('https://jira.example.com'), null);
+    assert.equal(baseUrlProblem('http://jira.example.com:8080/'), null, 'a trailing slash is fine');
+  });
+
+  test('reports an empty or whitespace-only value', () => {
+    assert.match(baseUrlProblem(''), /empty/);
+    assert.match(baseUrlProblem('   '), /empty/);
+    // Not baseUrlProblem(undefined): an explicit undefined falls back to process.env, which this
+    // test file sets to a valid URL at the top.
+  });
+
+  test('reports a reference that was never resolved', () => {
+    // What a host passes through when it does not substitute ${credential:...} before spawn.
+    assert.match(baseUrlProblem('${credential:JIRA_SERVER}'), /unresolved/);
+    assert.match(baseUrlProblem('${env:JIRA_BASE_URL}'), /placeholder/);
+  });
+
+  test('reports a bare host:port or a path, which are not absolute URLs', () => {
+    assert.match(baseUrlProblem('jira.example.com:8080'), /must be an absolute URL/);
+    assert.match(baseUrlProblem('/rest/api/2'), /must be an absolute URL/);
+  });
+
+  test('never echoes the value it was given', () => {
+    const secret = 'sup3r-s3cret-host.internal:8080';
+    const problem = baseUrlProblem(secret);
+    assert.ok(problem !== null);
+    assert.ok(!problem.includes(secret), 'the message must not contain the value');
+    assert.ok(!problem.includes('sup3r'), 'not even a fragment of it');
   });
 });
