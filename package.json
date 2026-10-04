@@ -13,7 +13,8 @@
     "verify:live": "node test/live-verify.mjs",
     "verify:vendor": "bash scripts/verify-vendor.sh",
     "probe:paths": "node scripts/probe-paths.mjs",
-    "tools:describe": "node scripts/dump-tools.mjs"
+    "tools:describe": "node scripts/dump-tools.mjs",
+    "capture:instance": "node scripts/capture-instance.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

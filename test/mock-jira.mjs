@@ -57,17 +57,25 @@ export function startMock(port = 18080) {
       if (M === 'PUT' && /\/worklog\/\d+$/.test(u)) return j(res, { id: '1', timeSpentSeconds: 60 });
 
       // -- reads ---------------------------------------------------------------
+      // Real Jira always sends `schema`; omitting it made the capture report's type column
+      // permanently empty, which would have hidden a bug in that report.
       if (u === '/rest/api/2/field') return j(res, [
-        { id: 'summary', name: 'Summary' }, { id: 'customfield_10123', name: 'Department', custom: true },
-        { id: 'customfield_10777', name: 'Release date', custom: true }]);
+        { id: 'summary', name: 'Summary', custom: false, schema: { type: 'string' } },
+        { id: 'customfield_10123', name: 'Department', custom: true,
+          schema: { type: 'option', custom: 'com.example.customfieldtypes:select', customId: 10123 } },
+        { id: 'customfield_10777', name: 'Release date', custom: true,
+          schema: { type: 'date', custom: 'com.example.customfieldtypes:datepicker', customId: 10777 } }]);
       if (u.includes('/createmeta')) return j(res, CREATEMETA);
       if (u.includes('/editmeta')) return j(res, EDITMETA);
       if (u === '/rest/api/2/myself') return j(res, { name: 'alice', displayName: 'Alice', emailAddress: 'a@x.com' });
       if (u === '/rest/api/2/serverInfo') return j(res, { version: '8.5.7', versionNumbers: [8, 5, 7], deploymentType: 'Server' });
       if (u === '/rest/plugins/1.0/') return j(res, { plugins: [{ key: 'com.example.plugin', name: 'Example Plugin', version: '1.0' }] });
       if (u === '/rest/api/2/project') return j(res, [{ key: 'PROJ', id: '10000', name: 'Demo' }]);
-      if (u === '/rest/api/2/search') return j(res, { startAt: 0, maxResults: 50, total: 1,
-        issues: [{ id: '1', key: 'PROJ-1', fields: { summary: 't', customfield_10123: { value: 'Platform' } } }] });
+      if (u === '/rest/api/2/search') return j(res, { startAt: 0, maxResults: 50, total: 2,
+        issues: [
+          { id: '1', key: 'PROJ-1', fields: { summary: 't', customfield_10123: { value: 'Platform' } } },
+          { id: '2', key: 'PROJ-2', fields: { summary: 't2', customfield_10777: '2026-01-01' } },
+        ] });
       if (u === '/rest/agile/1.0/board') return j(res, { values: [{ id: 7, name: 'B' }], isLast: true });
       if (/^\/rest\/agile\/1\.0\/board\/\d+\/sprint$/.test(u)) return j(res, { values: [{ id: 42, name: 'Sprint 1', state: 'active', originBoardId: 7 }], isLast: true });
       // The backlog is an issue list, not a `values` envelope. A mock that got this wrong

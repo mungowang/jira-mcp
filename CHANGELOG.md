@@ -114,6 +114,24 @@ Fixed as a result:
 
 ### Added
 
+- **`npm run capture:instance`** - capture the full structure of a real instance so the entity
+  schemas can be extended from evidence rather than assumption: one issue with every field plus
+  `expand=changelog,renderedFields,names,schema,transitions,editmeta`, its comments, worklogs,
+  attachments, watchers, remote links and transitions; raw `createmeta`/`editmeta` (which fields
+  are on the create/edit screens, required or not, and their allowed values); a sample of several
+  issues for **field presence**; the agile hierarchy; and the whole Zephyr hierarchy - test case
+  with steps and attachments, cycle with items/results/summary, plan, folder tree, status options,
+  custom field definitions and environments.
+
+  Output is deliberately split by safety: `capture/report.md` (and `summary.json`) carry key
+  names, types, array lengths and presence counts with **every value stripped**, so they can be
+  shared; `capture/raw/*.json` holds the untouched payloads and is gitignored. A test asserts the
+  shareable report does not contain values that are present in the raw files.
+
+  Multi-sample presence is the point: a key marked `*` appeared in *every* sample of its object,
+  which is what decides whether it may be `required`. `CAPTURE=1` folds it into a `verify:live`
+  run.
+
 - **`returns` in the plugin DSL.** JSON-declared tools were second-class: they could declare
   their inputs but never their output, so they got no `outputSchema` and no `structuredContent`
   while code-declared tools did. A declaration may now name an entity type

@@ -9,3 +9,7 @@ instance-profile.md
 .DS_Store
 ._*
 .!*!.DS_Store
+
+# Structure captures: raw payloads are real instance data and must never be committed.
+# capture/report.md is value-free and safe to share; the raw/ tree next to it is not.
+capture/

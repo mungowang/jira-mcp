@@ -14,6 +14,9 @@ import { startServer, isReadOnly } from './harness.mjs';
 import { argsFor } from './args.mjs';
 import { discoverContext, parse, asList } from './discover.mjs';
 import { CANDIDATES } from './probe-candidates.mjs';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { captureInstance, buildReport, buildSummary } from './capture.mjs';
 import { writeModeEnabled, assertWriteModeConfigured, verifyWrites } from './verify-writes.mjs';
 
 const env = {
@@ -137,6 +140,21 @@ if (process.env.VERIFY_PROBE_PATHS === '1') {
     console.log(`  ${line}`);
   }
   console.log('  (paste this section back to turn reachable paths into tools.d declarations)');
+}
+
+// -- phase 6 (opt-in): structure capture -------------------------------------
+if (process.env.CAPTURE === '1') {
+  const outDir = resolve(process.env.CAPTURE_DIR ?? 'capture');
+  console.log(`\n-- capturing instance structures into ${outDir} --`);
+  const { captured, payloads } = await captureInstance(srv, ctx, {
+    outDir,
+    limit: Number(process.env.CAPTURE_LIMIT ?? 3),
+    log: (l) => console.log(l),
+  });
+  mkdirSync(outDir, { recursive: true });
+  writeFileSync(resolve(outDir, 'report.md'), buildReport({ captured, payloads, ctx }));
+  writeFileSync(resolve(outDir, 'summary.json'), JSON.stringify(buildSummary({ captured, payloads }), null, 2));
+  console.log(`  ${captured.filter((c) => !c.failed).length}/${captured.length} captured -> ${outDir}/report.md (share this) + ${outDir}/raw/ (do NOT commit)`);
 }
 
 srv.stop();

@@ -237,6 +237,7 @@ npm test                    # 离线契约 + 传输层测试(mock Jira,无网络
 npm run verify:vendor       # 用上游 Zephyr 自己的测试套件验证 vendoring 没改坏行为
 npm run verify:live         # 对真实实例逐工具验证
 npm run probe:paths         # 探测候选插件端点
+npm run capture:instance    # 抓取真实实例的完整层级结构,用于扩展 schema
 ```
 
 `verify:vendor` 从上游 pinned commit 拉干净源码,换成我们的 vendored 版本跑它的测试套件。当前结果 **17 个测试文件全绿、1175 个用例通过、0 失败**(跳过 2 个依赖未 vendoring 的打包文件)。详见 [NOTICE.md](NOTICE.md)。
@@ -273,6 +274,46 @@ ZEPHYR_ALLOW_INTERNAL_API=true VERIFY_PROBE_PATHS=1 npm run verify:live
 ```
 
 单独探测也可以(`probe:paths` 会逐个报告候选路径的状态码:`200` 可用、`405` 路径存在但方法不对、`404` 没有)。候选清单在 [`test/probe-candidates.mjs`](test/probe-candidates.mjs),可自行增删。
+
+### 抓取真实结构以扩展 schema
+
+`npm run capture:instance` 会走一遍完整层级并**保存真实结构**,目的是让 `src/entity-types.ts` 的
+schema 有据可依而不是靠猜。它采集:
+
+- 一个 issue 的**全字段**(`fields=*all` + `expand=changelog,renderedFields,names,schema,transitions,editmeta`),
+  以及它的评论、工时、附件、watcher、remote link、流转
+- `createmeta` / `editmeta` 原始响应 → 哪些字段在创建/编辑屏幕上、是否必填、有哪些可选值
+- 多个 issue 的采样(默认 3 条,`CAPTURE_LIMIT` 可调)→ **字段出现率**
+- agile 层级:boards → sprints → sprint issues、backlog
+- Zephyr 完整层级:test case(+ steps/attachments)→ test run(+ items/results/summary)→ test plan、
+  文件夹树、状态选项、自定义字段定义、环境
+
+产出三个东西,**安全性是刻意分开的**:
+
+| 路径 | 内容 | 能否外传 |
+|---|---|---|
+| `capture/report.md` | 键名、类型、数组长度、出现次数。**所有值都被抹掉** | ✅ 可以贴出来 |
+| `capture/summary.json` | 同样内容的机器可读版 | ✅ |
+| `capture/raw/*.json` | **原始 payload,含真实值** | ❌ 已在 `.gitignore` 里 |
+
+`report.md` 里多 issue 采样会让你直接看到该留 `required` 还是必须 optional:
+
+```
+object
+  id: string  *
+  key: string  *
+  fields: object  *
+    summary: string  *
+    customfield_10123: object        ← 没有 * = 只在 1/2 采样里出现,必须 optional
+      value: string  *
+
+| field | present | value shape |
+| `summary` | 2/2 | string |
+| `customfield_10123` | 1/2 | object{value} |
+```
+
+`*` = 该键在**每一次**采样里都出现。**注意报告里有字段名**(真机上就是业务术语),值没有。接在
+`verify:live` 后面跑也可以:加 `CAPTURE=1`。
 
 ## 开源前需要替换的占位符
 
