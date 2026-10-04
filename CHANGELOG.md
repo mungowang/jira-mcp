@@ -114,6 +114,12 @@ Fixed as a result:
 
 ### Added
 
+- **The capture checks the schemas against real data.** Each captured payload is mapped to the
+  entity it should satisfy and validated, so `src/entity-types.ts` is no longer documentation
+  that can drift: a wrong assumption shows up as a failed check. `--check <dir>` re-runs those
+  checks against a saved capture with no network access, which is how a schema edit is verified
+  during development.
+
 - **`npm run capture:instance`** - capture the full structure of a real instance so the entity
   schemas can be extended from evidence rather than assumption: one issue with every field plus
   `expand=changelog,renderedFields,names,schema,transitions,editmeta`, its comments, worklogs,
@@ -130,7 +136,31 @@ Fixed as a result:
 
   Multi-sample presence is the point: a key marked `*` appeared in *every* sample of its object,
   which is what decides whether it may be `required`. `CAPTURE=1` folds it into a `verify:live`
-  run.
+  run. For Jira fields, presence alone says nothing - every issue carries every field key, mostly
+  with `null` - so the report also counts **`filled`** (a non-null, non-empty value), which is the
+  figure that identifies a custom field as actually in use.
+
+### Changed (from real captured data)
+
+`src/entity-types.ts` grew from 20 to 30 entities and every existing one was corrected against a
+real instance:
+
+- `attachment`: added `self`, `thumbnail`, and a note that `fields.attachment[]` and
+  `GET /rest/api/2/attachment/{id}` disagree - which is why nothing is required there.
+- `sprint`: added `self` and `goal`; `goal` was missing from some of the 40 sampled sprints, so it
+  stays optional while `id` is required.
+- `project` / `user` / `serverInfo`: filled in the keys the instance actually returns (`roles`,
+  `projectCategory`, `lead`, `locale`, `baseUrl`, `buildDate`, and so on).
+- `transitions`: the `to` status object is now described instead of left as an opaque record.
+- New Zephyr Scale entities derived from the captured hierarchy: `testCase`, `testRunItem`,
+  `testRun`, `testResult`, `testRunSummary`, `testPlan`, `zephyrPage`, `folderTree`, `folderNode`,
+  `statusOptions`, `customFieldDefinition`. They are reference shapes: the vendored upstream tools
+  return text, so they are not attached as outputSchema yet.
+- `folderTree` was split out of `folderNode` because the root of a folder tree is the project and
+  carries no `id` - the schema check caught exactly that.
+
+On the reference instance this also showed that of **339 field keys, only 37 carried a value** on
+any sampled issue, which is the evidence behind not writing static field maps.
 
 - **`returns` in the plugin DSL.** JSON-declared tools were second-class: they could declare
   their inputs but never their output, so they got no `outputSchema` and no `structuredContent`

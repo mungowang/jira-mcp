@@ -10,8 +10,41 @@
  *
  * Read-only throughout: documented read-only tools, plus GET via jira_request.
  */
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { E } from '../src/entity-types.ts';
+
+/**
+ * Which declared entity each captured payload should satisfy. This is what turns
+ * src/entity-types.ts from documentation into something real data is checked against.
+ * `[]` means the payload is an array whose *items* are that entity.
+ */
+export const ENTITY_FOR_STEP = {
+  issueFull: 'issue',
+  issueSample: 'searchResult',
+  issueComments: 'comments',
+  issueWorklogs: 'worklogs',
+  issueTransitions: 'transitions',
+  issueWatchers: 'watchers',
+  issueAttachments: 'attachmentList',
+  project: 'project',
+  me: 'user',
+  serverInfo: 'serverInfo',
+  plugins: 'plugins',
+  linkTypes: 'linkTypes',
+  boards: 'paged',
+  sprints: 'paged',
+  sprintIssues: 'agileIssues',
+  backlog: 'agileIssues',
+  testCaseFull: 'testCase',
+  testRunFull: 'testRun',
+  testRunResults: 'zephyrPage',
+  testRunSummary: 'testRunSummary',
+  testPlanFull: 'testPlan',
+  folderTree: 'folderTree',
+  statusOptions: 'statusOptions',
+  customFieldDefinitions: ['customFieldDefinition'],
+};
 
 // ---------------------------------------------------------------- shape helpers
 
@@ -191,7 +224,89 @@ export async function captureInstance(srv, ctx, { outDir, limit = 3, log = () =>
     captured.push({ name, tool, args, shape: shapeOf(payload) });
     log(`  ok ${name.padEnd(24)} ${tool}`);
   }
-  return { captured, payloads, rawDir };
+  // The single-object steps above say nothing about presence. Sample several cases/cycles/plans
+  // so the Zephyr entities get the same `*` evidence the issue section has.
+  const SAMPLING = [
+    { name: 'testCaseSamples', from: 'testCaseSearch', tool: 'get_test_case', arg: (key) => ({ testCaseKey: key }) },
+    { name: 'testRunSamples', from: 'testRunSearch', tool: 'get_test_run', arg: (key) => ({ testRunKey: key }) },
+    { name: 'testPlanSamples', from: 'testPlanSearch', tool: 'get_test_plan', arg: (key) => ({ testPlanKey: key }) },
+  ];
+  for (const g of SAMPLING) {
+    // Zephyr's search tools answer a page envelope ({values:[...]} or {items:[...]}), not a bare
+    // array, so the keys have to come out of whichever list the envelope uses.
+    const raw = payloads[g.from];
+    const list = Array.isArray(raw) ? raw
+      : Array.isArray(raw?.values) ? raw.values
+      : Array.isArray(raw?.items) ? raw.items
+      : [];
+    const keys = list.map((x) => x?.key).filter(Boolean).slice(0, limit);
+    if (keys.length < 2) continue;
+    const samples = [];
+    for (const key of keys) {
+      const r = await srv.callTool(g.tool, g.arg(key));
+      if (r.ok) samples.push(payloadOf(r));
+    }
+    if (!samples.length) continue;
+    payloads[g.name] = samples;
+    writeFileSync(resolve(rawDir, `${g.name}.json`), JSON.stringify(samples, null, 2));
+    captured.push({
+      name: g.name, tool: `${g.tool} x${samples.length}`, args: { keys },
+      shape: mergeShapes(samples.map((x) => shapeOf(x))),
+    });
+    log(`  ok ${g.name.padEnd(24)} ${g.tool} x${samples.length}`);
+  }
+
+  // Real payloads are checked against the declared entity schemas right away.
+  const checks = checkSchemas(captured, payloads);
+  for (const c of checks) {
+    const step = captured.find((x) => x.name === c.step);
+    if (step) step.schemaCheck = c;
+    log(`  ${c.ok ? 'ok' : 'x '} schema ${c.step} -> E.${c.entity}${c.ok ? '' : `  ${c.error}`}`);
+  }
+
+  return { captured, payloads, rawDir, checks };
+}
+
+/**
+ * Validate captured payloads against the declared entity schemas.
+ * Returns one entry per check: { step, entity, ok, error }.
+ */
+export function checkSchemas(captured, payloads) {
+  const out = [];
+  for (const c of captured) {
+    const target = ENTITY_FOR_STEP[c.name];
+    if (!target || c.failed) continue;
+    const payload = payloads[c.name];
+    const [entity, perItem] = Array.isArray(target) ? [target[0], true] : [target, false];
+    const schema = E[entity];
+    if (!schema) { out.push({ step: c.name, entity, ok: false, error: 'no such entity in the registry' }); continue; }
+    const samples = perItem ? (Array.isArray(payload) ? payload : [payload]) : [payload];
+    if (perItem && !samples.length) continue;
+    let bad = 0; let firstError = '';
+    for (const sample of samples) {
+      const r = schema.safeParse(sample);
+      if (!r.success) {
+        bad += 1;
+        if (!firstError) firstError = r.error.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`).join('; ');
+      }
+    }
+    out.push({
+      step: c.name, entity, ok: bad === 0,
+      ...(bad ? { error: `${bad}/${samples.length} sample(s) rejected - ${firstError}` } : {}),
+    });
+  }
+  return out;
+}
+
+/** Re-validate an existing capture directory with no network access. */
+export function checkCaptureDir(dir) {
+  const rawDir = resolve(dir, 'raw');
+  const payloads = {};
+  for (const name of Object.keys(ENTITY_FOR_STEP)) {
+    try { payloads[name] = JSON.parse(readFileSync(resolve(rawDir, `${name}.json`), 'utf8')); } catch { /* absent */ }
+  }
+  const captured = Object.keys(payloads).map((name) => ({ name }));
+  return { checks: checkSchemas(captured, payloads), found: Object.keys(payloads) };
 }
 
 // ---------------------------------------------------------------- report
@@ -239,11 +354,18 @@ export function jiraFieldInventory(payloads) {
 export function issuePresence(payloads) {
   const issues = payloads.issueSample?.issues ?? [];
   if (!issues.length) return { total: 0, envelope: null, fields: [] };
+  // `present` alone is not informative for Jira fields: every issue carries every field key,
+  // mostly with a null value. `filled` is the discriminator that shows which fields are in use.
+  const isFilled = (v) => v !== null && v !== undefined
+    && !(typeof v === 'string' && v === '')
+    && !(Array.isArray(v) && v.length === 0)
+    && !(typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === 0);
   const counts = new Map();
   for (const it of issues) {
     for (const [k, v] of Object.entries(it?.fields ?? {})) {
-      const e = counts.get(k) ?? { n: 0, shapes: [] };
+      const e = counts.get(k) ?? { n: 0, filled: 0, shapes: [] };
       e.n += 1;
+      if (isFilled(v)) e.filled += 1;
       e.shapes.push(shapeOf(v));
       counts.set(k, e);
     }
@@ -252,8 +374,8 @@ export function issuePresence(payloads) {
     total: issues.length,
     envelope: mergeShapes(issues.map((it) => shapeOf(it))),
     fields: [...counts.entries()]
-      .map(([id, e]) => ({ id, present: e.n, of: issues.length, shape: mergeShapes(e.shapes) }))
-      .sort((a, b) => (b.present - a.present) || a.id.localeCompare(b.id)),
+      .map(([id, e]) => ({ id, present: e.n, filled: e.filled, of: issues.length, shape: mergeShapes(e.shapes) }))
+      .sort((a, b) => (b.filled - a.filled) || (b.present - a.present) || a.id.localeCompare(b.id)),
   };
 }
 
@@ -270,8 +392,9 @@ export function buildReport({ captured, payloads, ctx, when = new Date() }) {
   lines.push(`- Zephyr keys: test case \`${ctx.testCaseKey ?? '-'}\`, cycle \`${ctx.testRunKey ?? '-'}\`, plan \`${ctx.testPlanKey ?? '-'}\``, '');
   lines.push('> This report contains **no values** - they are replaced by types, key names and counts.');
   lines.push('> It does contain *field names*, which on a real instance are business terminology.', '');
-  lines.push('> `*` marks a key present in **every** sample. With a single sample every key is starred,');
-  lines.push('> so the sampled-issue sections below are what carry the real presence evidence.', '');
+  lines.push('> `*` marks a key present in **every** sample of its object. It is only shown where a');
+  lines.push('> section had more than one sample - array items, or the multi-sample sections below - so');
+  lines.push('> the absence of a star on a single-object payload means "only sampled once", not "unstable".', '');
 
   // -- Jira field inventory -------------------------------------------------
   const inv = jiraFieldInventory(payloads);
@@ -295,11 +418,49 @@ export function buildReport({ captured, payloads, ctx, when = new Date() }) {
     lines.push('### Issue envelope', '', '```');
     lines.push(...renderShape(presence.envelope));
     lines.push('```', '');
-    lines.push('### Fields seen on those issues', '');
-    lines.push('| field | present | value shape |');
-    lines.push('|---|---|---|');
+    lines.push('### Fields, and whether they are actually in use', '');
+    lines.push('`present` counts the key being there; every issue carries every field key, usually with');
+    lines.push('`null`. **`filled` counts a non-null, non-empty value**, which is the figure that says');
+    lines.push('whether a custom field is really used.', '');
+    lines.push('| field | filled | present | value shape |');
+    lines.push('|---|---|---|---|');
     for (const f of presence.fields) {
-      lines.push(`| \`${f.id}\` | ${f.present}/${f.of} | ${brief(f.shape).replace(/\|/g, '/')} |`);
+      lines.push(`| \`${f.id}\` | ${f.filled}/${f.of} | ${f.present}/${f.of} | ${brief(f.shape).replace(/\|/g, '/')} |`);
+    }
+    lines.push('');
+    const used = presence.fields.filter((f) => f.filled).length;
+    lines.push(`> ${used} of ${presence.fields.length} field keys carried a value on at least one sampled issue.`, '');
+  }
+
+  // -- Zephyr entity evidence ----------------------------------------------
+  const zephyrSamples = [
+    ['testCaseSamples', 'Test case'],
+    ['testRunSamples', 'Test cycle'],
+    ['testPlanSamples', 'Test plan'],
+  ].filter(([n]) => payloads[n]?.length);
+  if (zephyrSamples.length) {
+    lines.push('## Zephyr entity evidence', '');
+    lines.push('Merged over several samples, so `*` is meaningful here.', '');
+    for (const [name, label] of zephyrSamples) {
+      const c = captured.find((x) => x.name === name);
+      lines.push(`### ${label} (${payloads[name].length} samples)`, '', '```');
+      lines.push(...renderShape(c.shape));
+      lines.push('```', '');
+    }
+  }
+
+  // -- schema check ---------------------------------------------------------
+  const checks = captured.filter((c) => c.schemaCheck).map((c) => c.schemaCheck);
+  if (checks.length) {
+    const bad = checks.filter((c) => !c.ok);
+    lines.push('## Schema check', '');
+    lines.push(`${checks.length - bad.length}/${checks.length} captured payload(s) satisfy the entity schema they are`);
+    lines.push('mapped to in `src/entity-types.ts`. A failure means the declared shape is wrong, not that the');
+    lines.push('instance is broken - fix the schema.', '');
+    lines.push('| step | entity | result | detail |');
+    lines.push('|---|---|---|---|');
+    for (const c of checks) {
+      lines.push(`| ${c.step} | \`E.${c.entity}\` | ${c.ok ? 'ok' : '**mismatch**'} | ${(c.error ?? '').replace(/\|/g, '/')} |`);
     }
     lines.push('');
   }

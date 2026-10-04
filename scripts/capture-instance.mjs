@@ -20,7 +20,23 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { startServer } from '../test/harness.mjs';
 import { discoverContext } from '../test/discover.mjs';
-import { captureInstance, buildReport, buildSummary } from '../test/capture.mjs';
+import { captureInstance, buildReport, buildSummary, checkCaptureDir } from '../test/capture.mjs';
+
+// `--check [dir]` re-validates an existing capture against the current entity schemas, with no
+// network access. This is how a schema edit is checked against real data without another run.
+const checkIdx = process.argv.indexOf('--check');
+if (checkIdx !== -1) {
+  const dir = process.argv[checkIdx + 1] ?? 'capture';
+  const { checks, found } = checkCaptureDir(dir);
+  console.log(`Checking ${found.length} captured payload(s) in ${dir} against src/entity-types.ts\n`);
+  let bad = 0;
+  for (const c of checks) {
+    if (!c.ok) bad += 1;
+    console.log(`  ${c.ok ? 'ok' : 'x '} ${c.step.padEnd(24)} E.${c.entity}${c.ok ? '' : `  ${c.error}`}`);
+  }
+  console.log(`\n${checks.length - bad}/${checks.length} ok`);
+  process.exit(bad ? 1 : 0);
+}
 
 const env = {
   JIRA_BASE_URL: process.env.JIRA_BASE_URL,

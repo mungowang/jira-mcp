@@ -99,9 +99,32 @@ export function startMock(port = 18080) {
       if (/^\/rest\/api\/2\/project\/[^/]+$/.test(u)) return j(res, { id: '10000', key: 'PROJ', name: 'Demo', projectTypeKey: 'software' });
       // The Zephyr search endpoints answer a BARE ARRAY; the vendored mapper drops anything
       // that is not an array, which is how a wrong mock shape stayed invisible.
-      if (/^\/rest\/atm\/1\.0\/testcase\/search$/.test(u)) return j(res, [{ id: 1, key: 'PROJ-T1', name: 'probe', projectKey: 'PROJ' }]);
-      if (/^\/rest\/atm\/1\.0\/testrun\/search$/.test(u)) return j(res, [{ id: 2, key: 'PROJ-R1', name: 'probe run', projectKey: 'PROJ' }]);
-      if (/^\/rest\/atm\/1\.0\/testplan\/search$/.test(u)) return j(res, [{ id: 3, key: 'PROJ-P1', name: 'probe plan', projectKey: 'PROJ' }]);
+      // The status option endpoint answers a BARE ARRAY; the tool wraps it as {source, values}.
+      if (/^\/rest\/tests\/1\.0\/project\/\d+\/testresultstatus$/.test(u)) {
+        return j(res, [{ id: 34, name: 'Not Executed', index: 0, color: '#cfcfc4', i18nKey: 'TEST_RESULT.STATUS.NOT_EXECUTED', isDefault: true, projectId: 10000 }]);
+      }
+      if (/^\/rest\/atm\/1\.0\/testcase\/search$/.test(u)) return j(res, [
+        { id: 1, key: 'PROJ-T1', name: 'probe', projectKey: 'PROJ' },
+        { id: 2, key: 'PROJ-T2', name: 'probe two', projectKey: 'PROJ' }]);
+      if (/^\/rest\/atm\/1\.0\/testrun\/search$/.test(u)) return j(res, [
+        { id: 3, key: 'PROJ-R1', name: 'probe run', projectKey: 'PROJ' },
+        { id: 4, key: 'PROJ-R2', name: 'probe run two', projectKey: 'PROJ' }]);
+      if (/^\/rest\/atm\/1\.0\/testplan\/search$/.test(u)) return j(res, [
+        { id: 5, key: 'PROJ-P1', name: 'probe plan', projectKey: 'PROJ' },
+        { id: 6, key: 'PROJ-P2', name: 'probe plan two', projectKey: 'PROJ' }]);
+      // Two deliberately different cases, so a presence statistic has something to say.
+      if (/^\/rest\/atm\/1\.0\/testcase\/PROJ-T1$/.test(u)) return j(res, {
+        id: 1, key: 'PROJ-T1', name: 'probe', projectKey: 'PROJ', status: 'Draft', priority: 'High',
+        folder: '/Regression', customFields: { Department: 'Platform' },
+        testScript: { id: 1, type: 'STEP_BY_STEP', steps: [{ id: 1, index: 0, description: 'open', expectedResult: 'opens' }] } });
+      if (/^\/rest\/atm\/1\.0\/testcase\/PROJ-T2$/.test(u)) return j(res, {
+        id: 2, key: 'PROJ-T2', name: 'probe two', projectKey: 'PROJ',
+        testScript: { id: 2, type: 'PLAIN_TEXT', text: 'just do it' } });
+      if (/^\/rest\/atm\/1\.0\/testrun\/PROJ-R\d$/.test(u)) return j(res, {
+        id: 3, key: u.split('/').pop(), name: 'probe run', projectKey: 'PROJ', status: 'In Progress',
+        items: [{ id: 1, testCaseKey: 'PROJ-T1', status: 'Pass' }] });
+      if (/^\/rest\/atm\/1\.0\/testplan\/PROJ-P\d$/.test(u)) return j(res, {
+        id: 5, key: u.split('/').pop(), name: 'probe plan', projectKey: 'PROJ', status: 'Draft' });
       if (u === '/rest/servicedeskapi/servicedesk') return j(res, { size: 1, values: [{ id: '5', projectKey: 'PROJ' }] });
       // JSM page shape: {size, startAt, isLast, values}. A generic {ok:true} here would not
       // satisfy the declared `paged` return type - and that is the point of declaring one.

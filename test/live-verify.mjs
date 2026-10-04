@@ -9,12 +9,11 @@
  *   JIRA_BASE_URL=https://jira.corp.com JIRA_USERNAME=you JIRA_PASSWORD=*** \
  *   [ZEPHYR_ALLOW_INTERNAL_API=true] node test/live-verify.mjs
  */
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { startServer, isReadOnly } from './harness.mjs';
 import { argsFor } from './args.mjs';
 import { discoverContext, parse, asList } from './discover.mjs';
 import { CANDIDATES } from './probe-candidates.mjs';
-import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { captureInstance, buildReport, buildSummary } from './capture.mjs';
 import { writeModeEnabled, assertWriteModeConfigured, verifyWrites } from './verify-writes.mjs';

@@ -6,7 +6,10 @@ import { resolve } from 'node:path';
 import { startServer } from './harness.mjs';
 import { startMock } from './mock-jira.mjs';
 import { discoverContext } from './discover.mjs';
-import { shapeOf, mergeShapes, renderShape, captureInstance, buildReport, buildSummary, issuePresence } from './capture.mjs';
+import {
+  shapeOf, mergeShapes, renderShape, captureInstance, buildReport, buildSummary,
+  issuePresence, checkSchemas, checkCaptureDir, ENTITY_FOR_STEP,
+} from './capture.mjs';
 
 describe('shape helpers', () => {
   test('scalars are typed without carrying their value', () => {
@@ -97,6 +100,53 @@ describe('capture against a real-shaped instance', () => {
     assert.ok(p.envelope.always.includes('id'));
     assert.ok(p.envelope.always.includes('key'));
     assert.ok(p.envelope.always.includes('fields'));
+  });
+
+  test('issuePresence separates "key present" from "value actually filled"', () => {
+    // Jira answers every field key on every issue, mostly with null. `filled` is the figure that
+    // says whether a custom field is really used, so both have to be reported.
+    const p = issuePresence(result.payloads);
+    const summary = p.fields.find((f) => f.id === 'summary');
+    assert.equal(summary.present, 2);
+    assert.equal(summary.filled, 2, 'summary had a value on both sampled issues');
+    const dept = p.fields.find((f) => f.id === 'customfield_10123');
+    assert.equal(dept.present, 1);
+    assert.equal(dept.filled, 1);
+  });
+
+  test('captured payloads satisfy the entity schemas they are mapped to', () => {
+    const checks = checkSchemas(result.captured, result.payloads);
+    assert.ok(checks.length >= 20, `expected many checks, got ${checks.length}`);
+    const bad = checks.filter((c) => !c.ok);
+    assert.deepEqual(bad, [], `schema mismatches: ${JSON.stringify(bad, null, 2)}`);
+  });
+
+  test('the folder tree root is not a folder node', () => {
+    // The root of a folder tree is the project and carries no `id`; the children do.
+    assert.equal(ENTITY_FOR_STEP.folderTree, 'folderTree');
+    assert.equal(ENTITY_FOR_STEP.statusOptions, 'statusOptions');
+  });
+
+  test('--check can re-validate a saved capture with no network', () => {
+    const { checks, found } = checkCaptureDir(outDir);
+    assert.ok(found.length >= 20);
+    assert.deepEqual(checks.filter((c) => !c.ok), []);
+  });
+
+  test('Zephyr entities are sampled so their presence is meaningful', () => {
+    assert.ok(Array.isArray(result.payloads.testCaseSamples), 'test cases sampled');
+    assert.ok(result.payloads.testCaseSamples.length >= 2);
+    const merged = result.captured.find((c) => c.name === 'testCaseSamples').shape;
+    assert.ok(merged.always.includes('key'), 'key is on every test case');
+    // `status` is on only one of the mock's two cases, so it must not be treated as stable.
+    assert.ok(!merged.always.includes('status'), 'status is not on every test case');
+    assert.equal(merged.keys.status.present, '1/2');
+  });
+
+  test('the report carries the Zephyr evidence and the schema check', () => {
+    assert.match(result.report, /## Zephyr entity evidence/);
+    assert.match(result.report, /## Schema check/);
+    assert.match(result.report, /satisfy the entity schema/);
   });
 
   test('the machine-readable summary mirrors the report shapes', () => {
