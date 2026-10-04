@@ -8,9 +8,10 @@
  * Guarded twice on purpose: it refuses to run unless VERIFY_WRITE=1 AND VERIFY_PROJECT is
  * set explicitly. There is no default project - a typo must not be able to write anywhere.
  */
-import { writeFileSync, rmSync } from 'node:fs';
+import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
+import { shapeOf } from './capture.mjs';
 
 export function writeModeEnabled() {
   return process.env.VERIFY_WRITE === '1';
@@ -33,12 +34,20 @@ export async function verifyWrites(srv, ctx, { record, issueTypeName = 'Task' } 
   const localFile = resolve(tmpdir(), `mcp-verify-${Date.now()}.txt`);
   writeFileSync(localFile, 'probe');
 
+  /**
+   * Write responses are the only evidence for the envelopes on the write path
+   * (createdIssue / comment / worklog / attachment), which are permissive today only because
+   * nothing has observed them. Record their shape so the schemas can be tightened afterwards.
+   */
+  const shapes = {};
   const step = async (label, fn) => {
     try {
       const r = await fn();
       if (!r.ok) { record(label, 'fail', r.text); console.log(`  x  ${label}  ${r.text.split('\n')[0].slice(0, 110)}`); return null; }
       record(label, 'ok', ''); console.log(`  ok ${label}`);
-      try { return JSON.parse(r.text); } catch { return r.text; }
+      const parsed = r.structuredContent ?? (() => { try { return JSON.parse(r.text); } catch { return r.text; } })();
+      if (parsed && typeof parsed === 'object') shapes[label] = shapeOf(parsed);
+      return parsed;
     } catch (err) {
       record(label, 'fail', err.message); console.log(`  x  ${label}  ${err.message.slice(0, 110)}`); return null;
     }
@@ -124,6 +133,13 @@ export async function verifyWrites(srv, ctx, { record, issueTypeName = 'Task' } 
     }));
     await step('jira_get_remote_links', () => srv.callTool('jira_get_remote_links', { key: probeKey }));
   } finally {
+    if (Object.keys(shapes).length) {
+      const dir = resolve(process.env.CAPTURE_DIR ?? 'capture');
+      mkdirSync(dir, { recursive: true });
+      const file = resolve(dir, 'write-shapes.json');
+      writeFileSync(file, JSON.stringify(shapes, null, 2));
+      console.log(`  i  write response shapes -> ${file} (gitignored; this is what tightens the write envelopes)`);
+    }
     if (probeKey) {
       // Cleanup matters more than reporting: never leave the probe behind.
       const del = await srv.callTool('jira_delete_issue', { key: probeKey });
