@@ -17,6 +17,15 @@ export function registerZephyr(server: McpServer): ZephyrStatus {
     process.env.ZEPHYR_READONLY = 'true';
   }
 
+  // The vendored loader defaults JIRA_AUTH to 'pat'. That default is wrong for this server: its
+  // whole premise is that 8.5.7 has no PAT (PAT starts at 8.14), so the normal configuration is
+  // base URL + username + password. Without this, that configuration silently loses all Zephyr
+  // tools to a misleading "JIRA_PAT is required when JIRA_AUTH=pat" - 55 tools instead of 109.
+  // Inferred here rather than in config.ts so the vendored copy stays byte-identical to upstream.
+  if (!process.env.JIRA_AUTH?.trim()) {
+    process.env.JIRA_AUTH = process.env.JIRA_PAT?.trim() ? 'pat' : 'basic';
+  }
+
   const before = countTools(server);
   let cfg;
   try {

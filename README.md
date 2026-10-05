@@ -15,7 +15,7 @@ Node >= 22.6
 ```
 
 > **关于构建**:从 GitHub 克隆下来**不需要构建** —— 源码直接跑(Node 原生类型擦除)。但从 npm 装下来的包带的是 `dist/jira-server.mjs` 单文件 bundle:Node **不允许**擦除 `node_modules` 里 `.ts` 的类型
-> (`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`),所以发布物必须是编译后的 JS。两条路径由 `bin/jira-server.mjs` 自动选择。
+> (`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`),所以发布物必须是编译后的 JS。`bin/jira-server.mjs` 按磁盘上有什么来选:**有 `src/` 就用源码**(检出目录绝不会跑到过期的构建产物),否则用 bundle。
 
 ## 从 npm 安装
 
@@ -78,6 +78,7 @@ npm start
 | `JIRA_BASE_URL` | — | 必填 |
 | `JIRA_USERNAME` / `JIRA_PASSWORD` | — | **8.5.7 走这条**(Basic Auth) |
 | `JIRA_PAT` | — | 8.14+ 才可用;设了就用 Bearer |
+| `JIRA_AUTH` | 按上面的变量推断 | `basic` 或 `pat`。**不设也能用**:设了 `JIRA_PAT` 就是 `pat`,否则 `basic` |
 | `JIRA_READ_ONLY` | `false` | 统一只读开关,同时约束核心工具和 Zephyr |
 | `JIRA_TLS_REJECT_UNAUTHORIZED` / `JIRA_SSL_VERIFY` | `true` | 自签证书设 `false` |
 | `JIRA_TIMEOUT_MS` | `30000` | 单次请求超时 |

@@ -21,6 +21,25 @@ before(async () => {
 after(() => { srv?.stop(); mock?.server.close(); });
 
 describe('tool surface', () => {
+  test('Zephyr mounts without JIRA_AUTH, because 8.5.7 has no PAT', async () => {
+    // The vendored loader defaults JIRA_AUTH to 'pat'. Every other test passes JIRA_AUTH=basic, so
+    // that default was never exercised - and a user following the README (base URL + username +
+    // password, the only path 8.5.7 supports) silently got 55 tools instead of 109. The default is
+    // now inferred in register.ts, which keeps the vendored copy identical to upstream.
+    const { JIRA_AUTH: _omitted, ...withoutAuth } = ENV;
+    const bare = await startServer(withoutAuth);
+    try {
+      const names = (await bare.listTools()).map((t) => t.name);
+      assert.ok(
+        names.includes('create_test_case'),
+        `Zephyr must mount without JIRA_AUTH (got ${names.length} tools)`,
+      );
+      assert.equal(names.filter((n) => n.startsWith('jira_')).length, 55, 'core tools unaffected');
+    } finally {
+      bare.stop();
+    }
+  });
+
   test('core and Zephyr share one server', () => {
     const names = tools.map((t) => t.name);
     assert.equal(names.filter((n) => n.startsWith('jira_')).length, 55, 'jira_* tool count');

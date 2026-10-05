@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.0.1 (unreleased)
+## 1.0.1
 
 ### Third real-instance run: plugin inventory, and a placeholder bug
 
@@ -111,6 +111,20 @@ Fixed as a result:
   asserts it stays disabled until the real path is confirmed.
 - Added `T.numericId` to the type registry and used it for `serviceDeskId`, keeping the
   "JSON declarations reuse registry types" property after Tempo was removed.
+
+### Fixed
+
+- **Zephyr was skipped unless `JIRA_AUTH` was set explicitly.** The vendored loader defaults
+  `JIRA_AUTH` to `pat`, so the configuration this server exists for - base URL, username and
+  password, because 8.5.7 has no PAT - silently mounted 55 tools instead of 109 and explained it
+  with `JIRA_PAT is required when JIRA_AUTH=pat`. The default is now inferred from what is set
+  (`pat` when `JIRA_PAT` is present, otherwise `basic`) in `registerZephyr`, which keeps the
+  vendored copy byte-identical to upstream. Every test passed `JIRA_AUTH=basic` explicitly, so the
+  suite had encoded the same assumption as the docs; there is now a test that mounts without it.
+- **A checkout could run a stale build.** `bin/jira-server.mjs` preferred `dist/` whenever it
+  existed, so after any build `npm start` silently used the old bundle instead of the sources.
+  Sources now win when present, and a package that ships only `dist/` (there is no `src/` in the
+  tarball) still runs the bundle.
 
 ### Packaging for npm
 
