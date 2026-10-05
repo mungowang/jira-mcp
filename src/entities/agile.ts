@@ -15,7 +15,7 @@ export const agile = {
   }),
   jira_list_sprints: defineTool({
     readOnly: true, returns: E.paged, desc: 'List the sprints of a board',
-    input: { boardId: T.boardId, state: z.enum(['future', 'active', 'closed']).optional() },
+    input: { boardId: T.boardId, state: z.enum(['future', 'active', 'closed']).optional().describe('only sprints in this state; omit for all') },
     run: ({ boardId, state }) => jira('GET', `/rest/agile/1.0/board/${boardId}/sprint`, { query: state ? { state } : {} }),
   }),
   jira_get_sprint: defineTool({
@@ -30,14 +30,14 @@ export const agile = {
   }),
   jira_get_board_issues: defineTool({
     readOnly: true, returns: E.agileIssues, desc: 'List the issues on a board',
-    input: { boardId: T.boardId, jql: T.jql.optional(), maxResults: T.number.optional() },
+    input: { boardId: T.boardId, jql: T.jql.optional(), maxResults: T.number.describe('page size (default 50)').optional() },
     run: ({ boardId, jql, maxResults }) => jira('GET', `/rest/agile/1.0/board/${boardId}/issue`, {
       query: { maxResults: maxResults ?? 50, ...(jql && { jql }) },
     }),
   }),
   jira_get_sprint_issues: defineTool({
     readOnly: true, returns: E.agileIssues, desc: 'List the issues in a sprint',
-    input: { sprintId, jql: T.jql.optional(), maxResults: T.number.optional() },
+    input: { sprintId, jql: T.jql.optional(), maxResults: T.number.describe('page size (default 50)').optional() },
     run: ({ sprintId, jql, maxResults }) => jira('GET', `/rest/agile/1.0/sprint/${sprintId}/issue`, {
       query: { maxResults: maxResults ?? 50, ...(jql && { jql }) },
     }),

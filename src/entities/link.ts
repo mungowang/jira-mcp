@@ -35,7 +35,7 @@ export const link = {
   jira_delete_link: defineTool({
     destructive: true,
     desc: 'Delete an issue link by its id (find ids in the issue\'s issuelinks field)',
-    input: { linkId: z.string() },
+    input: { linkId: z.string().describe('link id, from the issue issuelinks field') },
     run: ({ linkId }) => jira('DELETE', `/issueLink/${linkId}`),
   }),
 

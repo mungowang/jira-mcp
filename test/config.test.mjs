@@ -43,6 +43,37 @@ describe('plugin JSON validation (fail fast at startup)', () => {
     );
   });
 
+  test('a param may carry its own description (object form)', () => {
+    const t = toolsFromJson({
+      t: { desc: 'd', method: 'GET', path: '/x/{n}/{m}',
+        params: { n: { type: 'string', describe: 'the endpoint name' }, m: 'string' },
+        required: ['n'] },
+    }, 'f.json');
+    assert.equal(t.t.input.n._def.description, 'the endpoint name');
+    assert.equal(t.t.input.m._def.description, undefined, 'the short form still works');
+  });
+
+  test('the object form rejects unknown keys and a missing type', () => {
+    const build = (param) => toolsFromJson(
+      { t: { desc: 'd', method: 'GET', path: '/x/{n}', params: { n: param }, required: ['n'] } }, 'f.json',
+    );
+    assert.throws(() => build({ type: 'string', oops: 1 }), /unknown key/);
+    assert.throws(() => build({ describe: 'no type here' }), /needs a 'type'/);
+    assert.throws(() => build(42), /must be a type name or/);
+    assert.throws(() => build({ type: 'string', describe: 7 }), /non-string 'describe'/);
+  });
+
+  test('two params of the same registry type stay inline, not a $ref', () => {
+    // Reusing one Zod instance makes the SDK emit `$ref`, which a client that does not resolve it
+    // renders as "no type". The object form builds a fresh instance, so describing fixes both.
+    const t = toolsFromJson({
+      t: { desc: 'd', method: 'GET', path: '/x/{a}/{b}',
+        params: { a: 'string', b: { type: 'string', describe: 'the second' } } },
+    }, 'f.json');
+    assert.notEqual(t.t.input.a, t.t.input.b, 'distinct instances');
+    assert.equal(t.t.input.b._def.description, 'the second');
+  });
+
   test('an unknown return type is reported with the available names', () => {
     assert.throws(
       () => toolsFromJson({ t: { desc: 'x', method: 'GET', path: '/x', returns: 'nope' } }, 'f.json'),

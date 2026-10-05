@@ -61,6 +61,23 @@ npm run tools:describe -- jira_jsm     # one line: input and output structure
 npm run tools:describe -- --json jira  # full inputSchema / outputSchema
 ```
 
+### Describing a parameter
+
+A param value is either a type name, or an object when the hint has to be specific to this tool:
+
+```jsonc
+"params": {
+  "name":    { "type": "string", "describe": "endpoint name, the last path segment" },
+  "payload": "object"                    // the short form is still fine
+}
+```
+
+Only `type` and `describe` are allowed in the object form; anything else fails at startup.
+
+This matters beyond wording: `.describe()` produces a **new** schema instance, so a type used twice
+in one tool stays inline. Reusing one instance twice makes the MCP SDK emit a `$ref` to its first
+occurrence, and a client that does not resolve `$ref` then sees no type or description at all.
+
 ### Type names
 
 `params` values come from the registry in `src/types.ts`. Available today:

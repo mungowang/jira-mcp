@@ -3,8 +3,14 @@
     "jira_scriptrunner_run": {
       "desc": "Run a ScriptRunner custom endpoint",
       "params": {
-        "name": "string",
-        "payload": "object"
+        "name": {
+          "type": "string",
+          "describe": "ScriptRunner endpoint name - the last path segment, without a leading slash"
+        },
+        "payload": {
+          "type": "object",
+          "describe": "JSON body sent to the endpoint; omit it when the endpoint takes no input"
+        }
       },
       "required": [
         "name"

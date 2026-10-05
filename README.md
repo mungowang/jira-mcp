@@ -267,6 +267,8 @@ npm run probe:paths         # 探测候选插件端点
 npm run capture:instance    # 抓取真实实例的完整层级结构,用于扩展 schema
 ```
 
+`npm test` 里有一条不变量测试(`test/descriptions.test.mjs`):**任何工具、任何入参、任何输出字段缺 `description`,或 schema 里出现 `$ref`,都会失败**。这不是洁癖 —— `$ref` 在不解析它的客户端里等于"没有类型",而模型的工具调用全靠这些描述。
+
 `verify:vendor` 从上游 pinned commit 拉干净源码,换成我们的 vendored 版本跑它的测试套件。当前结果 **17 个测试文件全绿、1175 个用例通过、0 失败**(跳过 2 个依赖未 vendoring 的打包文件)。详见 [NOTICE.md](NOTICE.md)。
 
 `verify:live` 默认**只调用只读工具**(`readOnlyHint=true`),不产生任何写入,可以安全地对生产实例跑:

@@ -12,7 +12,7 @@ export const issue = {
   jira_describe_create: defineTool({
     readOnly: true,
     desc: 'Call before creating an issue. Returns the fields writable for this project/type, which are required, their value shapes and allowed values',
-    input: { projectKey: T.projectKey, issueTypeName: T.string },
+    input: { projectKey: T.projectKey, issueTypeName: T.string.describe('issue type name, e.g. Task; list them with jira_get_issue_types') },
     run: ({ projectKey, issueTypeName }) => describeCreate(projectKey, issueTypeName),
   }),
 
@@ -40,7 +40,13 @@ export const issue = {
   jira_search_issues: defineTool({
     readOnly: true, returns: E.searchResult,
     desc: 'Search issues with JQL',
-    input: { jql: T.jql, fields: T.fieldIds.optional(), maxResults: T.number.optional(), startAt: T.number.optional() },
+    input: {
+      jql: T.jql, fields: T.fieldIds.optional(),
+      // Separate instances on purpose: reusing one makes the SDK emit a $ref to the first, and a
+      // client that does not resolve $ref then sees no type at all for the second.
+      maxResults: T.number.describe('page size (default 50)').optional(),
+      startAt: T.number.describe('0-based index of the first result to return').optional(),
+    },
     run: ({ jql, fields, maxResults, startAt }) => jira('GET', '/search', {
       query: { jql, maxResults: maxResults ?? 50, startAt: startAt ?? 0, ...(fields && { fields: fields.join(',') }) } }),
   }),
@@ -54,14 +60,17 @@ export const issue = {
 
   jira_update_issue: defineTool({
     desc: 'Update an issue. Call jira_describe_edit first; use `update` for add/remove on multi-value fields',
-    input: { key: T.issueKey, fields: T.fields.optional(), update: T.fields.optional() },
+    input: {
+      key: T.issueKey, fields: T.fields.optional(),
+      update: T.fields.describe('per-field add/remove operations, e.g. { labels: [{ add: "x" }] }; use this to change a multi-value field instead of replacing it').optional(),
+    },
     run: ({ key, fields, update }) =>
       jira('PUT', `/issue/${key}`, { body: { ...(fields && { fields: expand(fields) }), ...(update && { update }) } }),
   }),
 
   jira_delete_issue: defineTool({
     destructive: true, desc: 'Delete an issue',
-    input: { key: T.issueKey, deleteSubtasks: T.boolean.optional() },
+    input: { key: T.issueKey, deleteSubtasks: T.boolean.describe('also delete its subtasks (default false)').optional() },
     run: ({ key, deleteSubtasks }) => jira('DELETE', `/issue/${key}`, { query: { deleteSubtasks: deleteSubtasks ?? false } }),
   }),
 
@@ -80,7 +89,11 @@ export const issue = {
 
   jira_transition_issue: defineTool({
     desc: 'Apply a workflow transition',
-    input: { key: T.issueKey, transitionId: z.string(), fields: T.fields.optional() },
+    input: {
+      key: T.issueKey,
+      transitionId: z.string().describe('transition id, from jira_get_transitions for this issue'),
+      fields: T.fields.optional(),
+    },
     run: ({ key, transitionId, fields }) =>
       jira('POST', `/issue/${key}/transitions`, { body: { transition: { id: transitionId }, ...(fields && { fields: expand(fields) }) } }),
   }),

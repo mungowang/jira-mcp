@@ -13,17 +13,17 @@ export const comment = {
   jira_add_comment: defineTool({
     returns: E.comment,
     desc: 'Add a comment (Server takes wiki markup, not Markdown)',
-    input: { key: T.issueKey, body: z.string() },
+    input: { key: T.issueKey, body: z.string().describe('comment text; Jira Server takes wiki markup, not Markdown') },
     run: ({ key, body }) => jira('POST', `/issue/${key}/comment`, { body: { body } }),
   }),
   jira_update_comment: defineTool({
     returns: E.comment, desc: 'Update a comment',
-    input: { key: T.issueKey, commentId: z.string(), body: z.string() },
+    input: { key: T.issueKey, commentId: z.string().describe('comment id, from jira_list_comments'), body: z.string().describe('comment text; Jira Server takes wiki markup, not Markdown') },
     run: ({ key, commentId, body }) => jira('PUT', `/issue/${key}/comment/${commentId}`, { body: { body } }),
   }),
   jira_delete_comment: defineTool({
     destructive: true, desc: 'Delete a comment',
-    input: { key: T.issueKey, commentId: z.string() },
+    input: { key: T.issueKey, commentId: z.string().describe('comment id, from jira_list_comments') },
     run: ({ key, commentId }) => jira('DELETE', `/issue/${key}/comment/${commentId}`),
   }),
 };

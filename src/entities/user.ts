@@ -16,12 +16,12 @@ export const user = {
   }),
   jira_search_users: defineTool({
     readOnly: true, desc: 'Search users (Server matches on username, not accountId)',
-    input: { query: z.string(), maxResults: T.number.optional() },
+    input: { query: z.string().describe('substring matched against username, display name and e-mail'), maxResults: T.number.describe('page size; Jira defaults to 50 on Server/DC').optional() },
     run: ({ query, maxResults }) => jira('GET', '/user/search', { query: { username: query, maxResults: maxResults ?? 20 } }),
   }),
   jira_search_assignable: defineTool({
     readOnly: true, desc: 'Search users assignable to an issue',
-    input: { key: T.issueKey, query: z.string().optional() },
+    input: { key: T.issueKey, query: z.string().describe('substring matched against username, display name and e-mail').optional() },
     run: ({ key, query }) => jira('GET', '/user/assignable/search', { query: { issueKey: key, username: query ?? '' } }),
   }),
 };

@@ -1,5 +1,34 @@
 # Changelog
 
+## 1.0.2
+
+### Every tool, parameter and output field now describes itself
+
+The surface the model sees was audited and made complete, because a missing description is not
+cosmetic: the model has to guess what a parameter means, and a `$ref` is worse than vague - a client
+that does not resolve `$ref` shows it no type at all.
+
+- **Input: 325 parameters, all described** (was 297). The 28 gaps were all in the hand-written core
+  tools - `jira_transition_issue.transitionId` and `jira_add_worklog.timeSpentSeconds` were required
+  and said nothing, not even the unit.
+- **Output: 264 fields, all described** (was 147 of 264). Fields that recur across entities
+  (`id`, `self`, `expand`, the paging trio, avatar urls) are now built by small factories in
+  `src/entity-types.ts` instead of being shared instances.
+- **No `$ref` anywhere** (was 5). The MCP SDK emits `$ref` when one Zod instance is reused inside a
+  schema, so `jira_search_issues.startAt` pointed at `maxResults` - a different meaning entirely -
+  and `E.comment.updateAuthor` pointed at `author`. Distinct instances remove it, and describing a
+  field is what makes it distinct.
+- **The JSON DSL can describe a parameter**: `{ "type": "string", "describe": "..." }` beside the
+  existing short form. Unknown keys fail at startup. This also fixes the same `$ref` collapse for
+  plugin declarations, which have no other way to hint a parameter.
+- **An invariant test** (`test/descriptions.test.mjs`) fails on any tool, parameter or output field
+  without a description, on any `$ref`, and on an output schema that is not open to new keys.
+
+### Fixed
+
+- `jira_search_issues.startAt` was rendered as a `$ref` to `maxResults`, so a client that does not
+  resolve `$ref` saw no type for it and one that does saw the wrong description.
+
 ## 1.0.1
 
 ### Third real-instance run: plugin inventory, and a placeholder bug

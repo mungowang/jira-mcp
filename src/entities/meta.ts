@@ -22,7 +22,11 @@ export const meta = {
   }),
   jira_request: defineTool({
     desc: 'Raw Jira REST call. The escape hatch for plugin modules that have no dedicated tool yet',
-    input: { method: T.httpMethod, path: T.restPath, query: T.object.optional(), body: z.any().optional() },
+    input: {
+      method: T.httpMethod.describe('HTTP method on the Jira REST API'), path: T.restPath,
+      query: T.object.describe('query string parameters as an object').optional(),
+      body: z.any().optional().describe('request body for POST/PUT/PATCH; JSON-encoded'),
+    },
     run: ({ method, path, query, body }) => jira(method, path, { query, body }),
   }),
 };

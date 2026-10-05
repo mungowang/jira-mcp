@@ -18,6 +18,29 @@ const deepFill = (v: unknown, args: Record<string, unknown>): unknown =>
 
 const METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']);
 
+/**
+ * A param is either a registry type name, or `{ "type": ..., "describe": ... }` when the hint has
+ * to be specific to this tool. The object form also matters mechanically: `.describe()` returns a
+ * new Zod instance, so a type used twice in one tool stays inline instead of collapsing into a
+ * `$ref` to its first occurrence - which clients that do not resolve `$ref` cannot read.
+ */
+function paramSpec(at: string, k: string, v: unknown): { type: string; describe?: string } {
+  if (typeof v === 'string') return { type: v };
+  if (v && typeof v === 'object' && !Array.isArray(v)) {
+    const { type, describe } = v as { type?: unknown; describe?: unknown };
+    if (typeof type !== 'string') throw new Error(`${at}: param '${k}' object form needs a 'type' string`);
+    if (describe !== undefined && typeof describe !== 'string') {
+      throw new Error(`${at}: param '${k}' has a non-string 'describe'`);
+    }
+    const extra = Object.keys(v).filter((x) => x !== 'type' && x !== 'describe');
+    if (extra.length) {
+      throw new Error(`${at}: param '${k}' has unknown key(s) ${extra.join(', ')}; only 'type' and 'describe' are allowed`);
+    }
+    return { type, ...(describe === undefined ? {} : { describe }) };
+  }
+  throw new Error(`${at}: param '${k}' must be a type name or { "type": ..., "describe": ... }, got ${JSON.stringify(v)}`);
+}
+
 /** Fail fast: a broken plugin declaration must be reported at startup, not at call time. */
 function validate(name: string, d: Record<string, any>, source: string): void {
   const at = `${source} -> tool '${name}'`;
@@ -25,10 +48,11 @@ function validate(name: string, d: Record<string, any>, source: string): void {
   if (!d.desc) throw new Error(`${at}: missing 'desc'`);
   if (!METHODS.has(d.method)) throw new Error(`${at}: 'method' must be one of ${[...METHODS].join('/')}, got ${JSON.stringify(d.method)}`);
   if (typeof d.path !== 'string' || !d.path) throw new Error(`${at}: missing 'path'`);
-  for (const [k, t] of Object.entries(d.params ?? {})) {
-    if (typeof t !== 'string' || !TYPE_NAMES.includes(t as never)) {
+  for (const [k, v] of Object.entries(d.params ?? {})) {
+    const { type } = paramSpec(at, k, v);
+    if (!TYPE_NAMES.includes(type as never)) {
       throw new Error(
-        `${at}: param '${k}' has type ${JSON.stringify(t)} which is not in the registry. ` +
+        `${at}: param '${k}' has type ${JSON.stringify(type)} which is not in the registry. ` +
         `Available: ${TYPE_NAMES.join(', ')} (add new types in src/types.ts)`,
       );
     }
@@ -52,6 +76,7 @@ function validate(name: string, d: Record<string, any>, source: string): void {
 export function toolsFromJson(defs: Record<string, any>, source = 'tools.d'): Record<string, Tool> {
   return Object.fromEntries(Object.entries(defs).map(([name, d]: [string, any]) => {
     validate(name, d, source);
+    const at = `${source} -> tool '${name}'`;
     return [name, {
       desc: d.desc,
       readOnly: !!d.readOnly,
@@ -60,9 +85,11 @@ export function toolsFromJson(defs: Record<string, any>, source = 'tools.d'): Re
       // handler result is also returned as structuredContent.
       ...(d.returns ? { returns: E[d.returns as keyof typeof E] } : {}),
       input: Object.fromEntries(
-        Object.entries(d.params ?? {}).map(([k, t]) => {
-          const base = resolveType(t as string);
-          return [k, (d.required ?? []).includes(k) ? base : base.optional()];
+        Object.entries(d.params ?? {}).map(([k, v]) => {
+          const { type, describe } = paramSpec(at, k, v);
+          const base = resolveType(type);
+          const shaped = describe === undefined ? base : base.describe(describe);
+          return [k, (d.required ?? []).includes(k) ? shaped : shaped.optional()];
         }),
       ) as never,
       run: (args: Record<string, unknown>) => jira(d.method, fill(d.path, args) as string, {

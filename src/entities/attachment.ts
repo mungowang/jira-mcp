@@ -16,7 +16,7 @@ export const attachment = {
   jira_get_attachment_meta: defineTool({
     readOnly: true, returns: E.attachment,
     desc: 'Get attachment metadata (filename/size/author/download url)',
-    input: { id: z.string() },
+    input: { id: z.string().describe('attachment id, from jira_list_attachments') },
     run: ({ id }) => jira('GET', `/attachment/${id}`),
   }),
   jira_upload_attachment: defineTool({
@@ -29,7 +29,7 @@ export const attachment = {
   }),
   jira_delete_attachment: defineTool({
     destructive: true, desc: 'Delete an attachment',
-    input: { id: z.string() },
+    input: { id: z.string().describe('attachment id, from jira_list_attachments') },
     run: ({ id }) => jira('DELETE', `/attachment/${id}`),
   }),
 };
