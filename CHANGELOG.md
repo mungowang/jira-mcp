@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.5
+
+### The version it reports now tracks the package
+
+`serverInfo.version` was the constant `1.0.0`, so every client's log and every MCP inspector showed
+a version that had not been true since the first release. It is read from the package manifest now,
+which resolves the same way in a checkout and in an install, and the startup line carries it too
+(`[jira-server] v1.0.5 started; ...`). A test asserts the reported version equals `package.json`'s.
+
 ## 1.0.4
 
 ### Correction: 1.0.2 claimed "no `$ref` anywhere", and that was wrong

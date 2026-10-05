@@ -32,7 +32,21 @@ const jsonTools = Object.assign({}, ...readdirSync(TOOLS_DIR)
     return toolsFromJson(parsed.tools ?? {}, `tools.d/${f}`);
   }));
 
-const server = new McpServer({ name: 'jira-server', version: '1.0.0' });
+/**
+ * The version a client sees in `serverInfo` has to be the version it installed, not a constant that
+ * was true once. Read it from the package manifest; ROOT resolves to the package root both in a
+ * checkout (src/) and in an install (dist/), so the same lookup works for both.
+ */
+const VERSION = (() => {
+  try {
+    const pkg = JSON.parse(readFileSync(resolve(ROOT, 'package.json'), 'utf8')) as { version?: string };
+    return typeof pkg.version === 'string' && pkg.version.length > 0 ? pkg.version : '0.0.0';
+  } catch {
+    return '0.0.0';
+  }
+})();
+
+const server = new McpServer({ name: 'jira-server', version: VERSION });
 
 // 1) Core entities + JSON-declared plugins.
 registerAll(server, [...entities, jsonTools], { readOnly: process.env.JIRA_READ_ONLY === 'true' });
@@ -46,7 +60,7 @@ const baseProblem = baseUrlProblem();
 if (baseProblem !== null) process.stderr.write(`[jira-server] WARN ${baseProblem}\n`);
 
 process.stderr.write(
-  `[jira-server] started; zephyr: ${zephyr.enabled ? `${zephyr.tools} tools @ ${zephyr.baseUrl}` : `off (${zephyr.reason})`}` +
+  `[jira-server] v${VERSION} started; zephyr: ${zephyr.enabled ? `${zephyr.tools} tools @ ${zephyr.baseUrl}` : `off (${zephyr.reason})`}` +
   `${baseProblem !== null ? '; BASE URL UNUSABLE (see WARN above)' : ''}` +
   `${process.env.JIRA_READ_ONLY === 'true' ? '; READ-ONLY' : ''}\n`,
 );

@@ -27,13 +27,15 @@ export async function startServer(env = {}, { timeoutMs = 30_000, cwd = ROOT } =
     proc.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n');
   });
 
-  await request('initialize', {
+  const initialized = await request('initialize', {
     protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'harness', version: '0' },
   });
   proc.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n');
 
   return {
     proc,
+    /** What the server reported about itself during the handshake. */
+    serverInfo: () => initialized.result?.serverInfo,
     stderr: () => stderr,
     stop: () => proc.kill(),
     listTools: async () => (await request('tools/list', {})).result.tools,

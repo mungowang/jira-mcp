@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import { startServer } from './harness.mjs';
 import { startMock } from './mock-jira.mjs';
 import { refs, undescribed } from './schema-walk.mjs';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { ROOT } from './harness.mjs';
 
 /**
  * The tool surface is what the model sees. A missing description is not a cosmetic problem: the
@@ -67,6 +70,13 @@ describe('tool descriptions', () => {
       if (t.outputSchema) found.push(...refs(t.outputSchema, `${t.name} (output)`));
     }
     assert.deepEqual(found, []);
+  });
+
+  test('the version it reports is the version that was installed', () => {
+    // It was hardcoded once, so every client's log showed 1.0.0 for four releases. A version that
+    // does not track the package is worse than none: it is believed when debugging.
+    const pkg = JSON.parse(readFileSync(resolve(ROOT, 'package.json'), 'utf8'));
+    assert.equal(srv.serverInfo()?.version, pkg.version);
   });
 
   test('input schemas reject unknown parameters, output schemas tolerate new keys', () => {
