@@ -1,6 +1,6 @@
 {
   "name": "@mohou/jira-mcp",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "type": "module",
   "description": "MCP server for self-hosted Jira Server 8.x — entity-based core tools, plugin JSON declarations, bundled Zephyr Scale",
   "engines": {

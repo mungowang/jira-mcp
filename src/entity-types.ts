@@ -23,7 +23,11 @@ import { z } from 'zod';
  * `returns` - a declared outputSchema requires structuredContent, and an empty body violates it.
  */
 
-const anyRecord = z.record(z.string(), z.any());
+/** A string-keyed map with unknown values. A **factory**: `z.record(z.string(), z.any())` created
+ *  once shares its inner `z.any()` with every user, and the MCP SDK then emits `$ref` for the second
+ *  occurrence inside one schema - a level deeper than the property itself, inside `additionalProperties`,
+ *  which is exactly where the first version of the no-`$ref` check failed to look. */
+const anyRecord = () => z.record(z.string(), z.any());
 
 /** Envelope: a few fixed keys, everything else allowed. */
 const envelope = <S extends z.ZodRawShape>(shape: S) => z.object(shape).passthrough();
@@ -44,7 +48,7 @@ const pageStart = () => z.number().describe('0-based index of the first item in 
 const pageSize = () => z.number().describe('page size the server applied');
 const pageTotal = () => z.number().describe('total matches, which may exceed the items returned');
 const pageIsLast = () => z.boolean().describe('true when this is the last page');
-const avatarUrls = () => anyRecord.describe('avatar URLs keyed by size: 16x16, 24x24, 32x32, 48x48');
+const avatarUrls = () => anyRecord().describe('avatar URLs keyed by size: 16x16, 24x24, 32x32, 48x48');
 
 /** A user reference as it appears in author/assignee/reporter/creator. Fresh per call (see above). */
 const userRef = () => envelope({
@@ -67,7 +71,7 @@ export const E = {
     key: z.string().describe('issue key, e.g. PROJ-123'),
     self: resourceUrl().optional(),
     expand: expandField().optional(),
-    fields: anyRecord.describe('business fields; custom and plugin fields are keyed customfield_xxxxx and their value shape varies by field type'),
+    fields: anyRecord().describe('business fields; custom and plugin fields are keyed customfield_xxxxx and their value shape varies by field type'),
   }).describe('Jira issue'),
 
   // UNVERIFIED: no write verification run yet -> nothing required.
@@ -321,7 +325,7 @@ export const E = {
     majorVersion: z.number().optional(),
     latestVersion: z.boolean().optional(),
     lastTestResultStatus: z.string().optional(),
-    customFields: anyRecord.optional().describe('field NAME -> value; the names are instance-specific'),
+    customFields: anyRecord().optional().describe('field NAME -> value; the names are instance-specific'),
     testScript: envelope({
       id: z.number().optional(),
       type: z.string().optional().describe('STEP_BY_STEP | PLAIN_TEXT | BDD'),

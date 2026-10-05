@@ -62,7 +62,9 @@ export const issue = {
     desc: 'Update an issue. Call jira_describe_edit first; use `update` for add/remove on multi-value fields',
     input: {
       key: T.issueKey, fields: T.fields.optional(),
-      update: T.fields.describe('per-field add/remove operations, e.g. { labels: [{ add: "x" }] }; use this to change a multi-value field instead of replacing it').optional(),
+      // A record built here rather than reusing T.fields: two record params in one tool would share
+      // the inner value schema and the second would be emitted as a $ref.
+      update: z.record(z.string(), z.any()).describe('per-field add/remove operations, e.g. { labels: [{ add: "x" }] }; use this to change a multi-value field instead of replacing it').optional(),
     },
     run: ({ key, fields, update }) =>
       jira('PUT', `/issue/${key}`, { body: { ...(fields && { fields: expand(fields) }), ...(update && { update }) } }),

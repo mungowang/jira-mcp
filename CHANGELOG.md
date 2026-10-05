@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.0.4
+
+### Correction: 1.0.2 claimed "no `$ref` anywhere", and that was wrong
+
+Four `$ref`s remained. The check written to find them walked only `properties` and `items`, and all
+four sat one level deeper - inside `additionalProperties`, which is where the MCP SDK puts the value
+schema of a `z.record`:
+
+```
+jira_update_issue.update{}                     -> #/properties/fields/additionalProperties
+jira_add_comment.updateAuthor.avatarUrls{}     -> #/properties/author/.../additionalProperties
+jira_update_comment.updateAuthor.avatarUrls{}  -> ...
+jira_get_project.avatarUrls{}                  -> #/properties/lead/.../additionalProperties
+```
+
+The cause was the same one 1.0.2 fixed, one level down: a `z.record(z.string(), z.any())` built once
+shares its inner `z.any()` with every user of it. `anyRecord` is now a factory, `jira_update_issue`
+builds its own `update` record rather than reusing `T.fields`, and the deep walk reports zero.
+
+`test/schema-walk.mjs` now holds the walkers, and `descriptions.test.mjs` tests them **against
+schemas known to contain the bug** - including the assertion that the old, shallower walk is blind
+to it. A checker that cannot see its own target is worse than no checker, because it is believed.
+
 ## 1.0.3
 
 ### An observation-only mode for the Zephyr output contract

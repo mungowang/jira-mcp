@@ -2,6 +2,7 @@ import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { startServer } from './harness.mjs';
 import { startMock } from './mock-jira.mjs';
+import { refs, undescribed } from './schema-walk.mjs';
 
 /**
  * The tool surface is what the model sees. A missing description is not a cosmetic problem: the
@@ -19,28 +20,6 @@ const ENV = {
 };
 
 const has = (s) => typeof s === 'string' && s.trim().length > 0;
-
-/** Every `$ref` in a schema, with the path that holds it. */
-function refs(node, path, out = []) {
-  if (!node || typeof node !== 'object') return out;
-  if (typeof node.$ref === 'string') out.push(`${path} -> ${node.$ref}`);
-  if (node.properties) for (const [k, v] of Object.entries(node.properties)) refs(v, `${path}.${k}`, out);
-  if (node.items) refs(node.items, `${path}[]`, out);
-  return out;
-}
-
-/** Every property at every level that carries no description. */
-function undescribed(node, path, out = []) {
-  if (!node || typeof node !== 'object') return out;
-  if (node.properties) {
-    for (const [k, v] of Object.entries(node.properties)) {
-      if (!has(v.description)) out.push(`${path}.${k}`);
-      undescribed(v, `${path}.${k}`, out);
-    }
-  }
-  if (node.items) undescribed(node.items, `${path}[]`, out);
-  return out;
-}
 
 let mock, srv, tools;
 before(async () => {
@@ -103,5 +82,52 @@ describe('tool descriptions', () => {
         assert.equal(t.outputSchema.additionalProperties, true, `${t.name}: output must tolerate new server keys`);
       }
     }
+  });
+});
+
+describe('the $ref checker itself', () => {
+  // Guards the guard. The first version of `refs` walked only `properties` and `items` and missed
+  // the four `$ref`s that live inside `additionalProperties` - the value schema of a `z.record`.
+  // These cases are the exact shapes that hid from it.
+  test('it finds a $ref nested inside additionalProperties', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        author: { type: 'object', properties: { avatars: { type: 'object', additionalProperties: {} } } },
+        editor: { type: 'object', properties: { avatars: { type: 'object',
+          additionalProperties: { $ref: '#/properties/author/properties/avatars/additionalProperties' } } } },
+      },
+    };
+    assert.deepEqual(refs(schema, 'tool'), ['tool.editor.avatars{} -> #/properties/author/properties/avatars/additionalProperties']);
+  });
+
+  test('a walk of properties and items alone would not have found it', () => {
+    const shallow = (n, p, out = []) => {
+      if (!n || typeof n !== 'object') return out;
+      if (typeof n.$ref === 'string') out.push(p);
+      if (n.properties) for (const [k, v] of Object.entries(n.properties)) shallow(v, `${p}.${k}`, out);
+      if (n.items) shallow(n.items, `${p}[]`, out);
+      return out;
+    };
+    const schema = { properties: { m: { additionalProperties: { $ref: '#/x' } } } };
+    assert.deepEqual(shallow(schema, 'tool'), [], 'the old walk is blind to it - that was the bug');
+    assert.equal(refs(schema, 'tool').length, 1, 'the current walk sees it');
+  });
+
+  test('it walks oneOf / anyOf / allOf too', () => {
+    const schema = { oneOf: [{ properties: { a: { $ref: '#/a' } } }, { anyOf: [{ $ref: '#/b' }] }] };
+    assert.equal(refs(schema, 't').length, 2);
+  });
+
+  test('undescribed holds named properties to it, but not map values', () => {
+    // A map property still needs its own description - it has a name. Its *values* have none, so
+    // requiring one there would ask for text nobody can place.
+    const schema = {
+      properties: {
+        named: { type: 'string' },
+        describedMap: { type: 'object', description: 'a map of things', additionalProperties: {} },
+      },
+    };
+    assert.deepEqual(undescribed(schema, 't'), ['t.named']);
   });
 });
