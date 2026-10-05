@@ -13,3 +13,7 @@ instance-profile.md
 # Structure captures: raw payloads are real instance data and must never be committed.
 # capture/report.md is value-free and safe to share; the raw/ tree next to it is not.
 capture/
+
+# Build output. Produced by `npm run build` and again by `prepack`, so the published
+# tarball always carries a fresh bundle while the repository keeps no artifacts.
+dist/

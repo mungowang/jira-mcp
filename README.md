@@ -1,4 +1,4 @@
-# jira-server-mcp
+# @mohou/jira-mcp
 
 自托管 **Jira Server / Data Center** 的 MCP server。为一个具体约束而做:**Jira 8.5.7 没有 Personal Access Token**(PAT 从 8.14 才有),所以认证必须走 Basic Auth;而实例上插件多、自定义字段多,固定工具面覆盖不了。
 
@@ -11,10 +11,36 @@
 ```
 
 ```
-Node >= 22.6   # 直接跑 TypeScript,无构建步骤
+Node >= 22.6
 ```
 
-## 快速开始
+> **关于构建**:从 GitHub 克隆下来**不需要构建** —— 源码直接跑(Node 原生类型擦除)。但从 npm 装下来的包带的是 `dist/jira-server.mjs` 单文件 bundle:Node **不允许**擦除 `node_modules` 里 `.ts` 的类型
+> (`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`),所以发布物必须是编译后的 JS。两条路径由 `bin/jira-server.mjs` 自动选择。
+
+## 从 npm 安装
+
+```bash
+npx @mohou/jira-mcp          # 或 npm i -g @mohou/jira-mcp
+```
+
+```json
+{
+  "mcpServers": {
+    "jira": {
+      "command": "npx",
+      "args": ["-y", "@mohou/jira-mcp"],
+      "env": {
+        "JIRA_BASE_URL": "https://jira.corp.com",
+        "JIRA_USERNAME": "your.name",
+        "JIRA_PASSWORD": "***",
+        "ZEPHYR_ALLOW_INTERNAL_API": "true"
+      }
+    }
+  }
+}
+```
+
+## 从源码运行
 
 ```bash
 npm install
@@ -66,8 +92,8 @@ npm start
 失败的返回不是裸状态码,而是带着下一步动作:
 
 ```
-400 Field 'customfield_10123' cannot be set. It is not on the appropriate screen...
- → 字段 'customfield_10123' 不在该项目/类型的 Screen 上,或字段名不存在。
+400 Field 'customfield_20001' cannot be set. It is not on the appropriate screen...
+ → 字段 'customfield_20001' 不在该项目/类型的 Screen 上,或字段名不存在。
    先用 jira_describe_create / jira_describe_edit 查看当前真正可填的字段。
 
 401 → 认证失败。若该账号走 SSO/Crowd 且无本地密码,或实例开启了 CAPTCHA,Basic Auth 不可用。
@@ -78,7 +104,7 @@ npm start
 
 ### 1. 字段知识是运行时数据,不是代码
 
-`customfield_10123` 在你们实例里是"部门"、值是 `{"id":"10101"}`,在别人实例里是别的字段。**把它写进代码就锁死了** —— 这正是大多数现成 MCP server 的死法。
+`customfield_20001` 在你们实例里是"部门"、值是 `{"id":"10101"}`,在别人实例里是别的字段。**把它写进代码就锁死了** —— 这正是大多数现成 MCP server 的死法。
 
 所以写接口一律 `fields` 原样透传,字段的形状由两个"填空题"工具在运行时从 Jira 读出来:
 
@@ -94,11 +120,11 @@ jira_describe_edit(issueKey)        → 这个 issue 当前能改什么(已按�
 
 必填:
   summary                    string         → "文本"
-  customfield_10123(部门)      option         → {"id":"..."}  可选项: 平台组(10101) | 基础架构组(10102)
+  customfield_20001(部门)      option         → {"id":"..."}  可选项: 平台组(10101) | 基础架构组(10102)
 
 选填:
   assignee                   user           → {"name":"username"}  可选项: alice(alice)
-  customfield_10777(上线日期)    date           → "2026-01-01"
+  customfield_20002(上线日期)    date           → "2026-01-01"
 
 按上面的形态填好后调用: jira_create_issue({ fields: {...} })
 ```
@@ -111,7 +137,7 @@ jira_describe_edit(issueKey)        → 这个 issue 当前能改什么(已按�
 |---|---|---|
 | `src/types.ts`(Zod 注册表) | 参数的**形状和用法** | `issueKey` 必须 `PROJ-123`;Server 用 `name` 不是 `accountId` |
 | `tools.d/*.json` | **有哪些工具、打哪个端点** | Tempo 的 `/rest/tempo-timesheets/4/worklogs` |
-| Jira meta 接口 | 字段有哪些、值怎么填 | `customfield_10123` 可选"平台组" |
+| Jira meta 接口 | 字段有哪些、值怎么填 | `customfield_20001` 可选"平台组" |
 
 `types.ts` 里的 `.describe()` 直接进模型看到的 JSON Schema,所以"Server 用 name"这类坑**写一次,所有引用它的工具都自动获得正确提示**。
 
@@ -304,12 +330,12 @@ object
   key: string  *
   fields: object  *
     summary: string  *
-    customfield_10123: object        ← 没有 * = 只在 1/2 采样里出现,必须 optional
+    customfield_20001: object        ← 没有 * = 只在 1/2 采样里出现,必须 optional
       value: string  *
 
 | field | present | value shape |
 | `summary` | 2/2 | string |
-| `customfield_10123` | 1/2 | object{value} |
+| `customfield_20001` | 1/2 | object{value} |
 ```
 
 报告里**没有字段值**,但**有字段名**(真机上是业务术语)和采样的标识符(项目 key、issue key、board/sprint id、
@@ -331,19 +357,22 @@ Zephyr key)。如果你要把报告公开,加 `CAPTURE_REDACT=1`,标识符会变
 node scripts/capture-instance.mjs --check capture
 ```
 
-## 开源前需要替换的占位符
+## 发布
 
-本仓库里的所有实例数据都是 dummy。克隆后请替换:
+```bash
+npm run build     # esbuild -> dist/jira-server.mjs(单文件,SDK 与 zod 保持 external)
+npm publish       # prepack 会自动先 build
+```
 
-| 位置 | 占位符 | 说明 |
-|---|---|---|
-| `LICENSE` | `<COPYRIGHT HOLDER>` | 版权方 |
-| `package.json` | `<YOUR NAME OR ORGANIZATION>`、`github.com/example/...` | 作者与仓库地址 |
-| `package.json` | `"private": true` | 想 `npm publish` 时删掉这一行 |
-| `test/mock-jira.mjs`、各示例 | `jira.example.com`、`PROJ`、`alice` | 都是虚构值 |
+`dist/` 在 `.gitignore` 里(仓库不留构建产物),但 `files` 显式包含它,且 `prepack` 保证每次打包都是新构建。发布前的自检:
 
-自己实例的真实信息请写进 `docs/instance-profile.md`(已在 `.gitignore` 里),模板见
-[`docs/instance-profile.example.md`](docs/instance-profile.example.md)。
+```bash
+rm -rf dist && npm pack          # 模拟干净检出,确认 prepack 能构建出 dist
+npm i -g ./mohou-jira-mcp-*.tgz  # 装到别处,确认真的能起
+```
+
+**为什么必须构建**:Node 对 `node_modules` 下的 `.ts` 拒绝类型擦除
+(`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`),源码形态装到别人机器上起不来。这是发布物必须带 JS 的唯一原因。
 
 ## 目标实例画像
 

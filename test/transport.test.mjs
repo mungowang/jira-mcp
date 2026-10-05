@@ -30,7 +30,7 @@ before(async () => {
     if (u === '/rest/api/2/forbidden') return send(403, { errorMessages: ['no permission'] });
     if (u === '/rest/api/2/nope') return send(404, { errorMessages: ['Issue does not exist'] });
     if (u === '/rest/api/2/screen') {
-      return send(400, { errorMessages: ["Field 'customfield_10123' cannot be set. It is not on the appropriate screen, or unknown."] });
+      return send(400, { errorMessages: ["Field 'customfield_20001' cannot be set. It is not on the appropriate screen, or unknown."] });
     }
     if (u === '/rest/api/2/flaky') {
       hits.flaky++;
@@ -134,9 +134,9 @@ describe('error translation', () => {
   });
 
   test('a screen error names the field and points at the describe tools', () => {
-    const body = JSON.stringify({ errorMessages: ["Field 'customfield_10123' cannot be set. It is not on the appropriate screen, or unknown."] });
+    const body = JSON.stringify({ errorMessages: ["Field 'customfield_20001' cannot be set. It is not on the appropriate screen, or unknown."] });
     const m = explain(400, body, 'POST', '/issue');
-    assert.match(m, /customfield_10123/);
+    assert.match(m, /customfield_20001/);
     assert.match(m, /screen/i);
     assert.match(m, /jira_describe_create|jira_describe_edit/);
   });

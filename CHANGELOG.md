@@ -112,6 +112,31 @@ Fixed as a result:
 - Added `T.numericId` to the type registry and used it for `serviceDeskId`, keeping the
   "JSON declarations reuse registry types" property after Tempo was removed.
 
+### Packaging for npm
+
+The package is published as `@mohou/jira-mcp`. Publishing it as-is would have shipped something
+that cannot start:
+
+- **Node refuses type stripping under `node_modules`**
+  (`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`), so the "no build step" sources run from a
+  checkout but not from an installed package. The published artifact is now a single esbuild
+  bundle, `dist/jira-server.mjs`, with the SDK and zod kept external; `bin/jira-server.mjs`
+  picks the bundle when it exists and the sources otherwise, so both paths keep working and a
+  checkout still needs no build.
+- **`jira.config.json` was missing from `files`.** Its absence is silent - `aliases.ts` returns an
+  empty map on ENOENT - so an installed package would have lost every business alias without a
+  word. It is shipped now, and `prepack` rebuilds `dist/` so the tarball is never stale.
+- **Two alias ids were real.** `jira.config.json` pointed at `customfield_10123` / `customfield_10777`,
+  which exist on the reference instance. They are now synthetic (`20001` / `20002`), with the mock
+  and the tests moved with them.
+- `private` is gone, `publishConfig.access` is `public` (a scoped package defaults to restricted),
+  and the author/repository/homepage/bugs/licence placeholders are filled.
+
+Verified by installing the tarball into a clean directory and booting it: 97 tools, plugin tools
+from `tools.d/` present (which also proves the `import.meta.url`-relative root resolution works
+from an installed location), output schemas intact. Then the same from a deleted `dist/`, to prove
+`prepack` builds during `npm pack`.
+
 ### Added
 
 - **A bad `JIRA_BASE_URL` now says what is wrong.** It used to surface only as `fetch failed` or

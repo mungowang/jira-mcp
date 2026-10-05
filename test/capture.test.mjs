@@ -87,10 +87,10 @@ describe('capture against a real-shaped instance', () => {
 
   test('the report documents field types, screens and presence', () => {
     assert.match(result.report, /## Jira fields/);
-    assert.match(result.report, /\| `customfield_10123` \| Department \| option \|/);
+    assert.match(result.report, /\| `customfield_20001` \| Department \| option \|/);
     assert.match(result.report, /## Issue entity evidence/);
     assert.match(result.report, /Merged over \*\*2\*\* sampled issue/);
-    assert.match(result.report, /\| `customfield_10123` \| 1\/2 \|/);
+    assert.match(result.report, /\| `customfield_20001` \| 1\/2 \|/);
     assert.match(result.report, /\| `summary` \| 2\/2 \|/);
   });
 
@@ -109,7 +109,7 @@ describe('capture against a real-shaped instance', () => {
     const summary = p.fields.find((f) => f.id === 'summary');
     assert.equal(summary.present, 2);
     assert.equal(summary.filled, 2, 'summary had a value on both sampled issues');
-    const dept = p.fields.find((f) => f.id === 'customfield_10123');
+    const dept = p.fields.find((f) => f.id === 'customfield_20001');
     assert.equal(dept.present, 1);
     assert.equal(dept.filled, 1);
   });

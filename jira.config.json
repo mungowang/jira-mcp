@@ -1,7 +1,7 @@
 {
   "fieldAliases": {
-    "Department": "customfield_10123",
-    "Release date": "customfield_10777",
-    "Story points": "customfield_10999"
+    "Department": "customfield_20001",
+    "Release date": "customfield_20002",
+    "Story points": "customfield_20003"
   }
 }

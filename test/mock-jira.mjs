@@ -13,17 +13,17 @@ const noContent = (res) => { res.statusCode = 204; res.end(); };
 
 const CREATEMETA = { projects: [{ key: 'PROJ', issuetypes: [{ name: 'Task', fields: {
   summary: { required: true, name: 'Summary', schema: { type: 'string' } },
-  customfield_10123: { required: true, name: 'Department', schema: { type: 'option', custom: 'select', customId: 10123 },
+  customfield_20001: { required: true, name: 'Department', schema: { type: 'option', custom: 'select', customId: 20001 },
     allowedValues: [{ id: '10101', value: 'Platform' }, { id: '10102', value: 'Infrastructure' }] },
   assignee: { required: false, name: 'Assignee', schema: { type: 'user' }, allowedValues: [{ name: 'alice', displayName: 'Alice' }] },
-  customfield_10777: { required: false, name: 'Release date', schema: { type: 'date' } },
+  customfield_20002: { required: false, name: 'Release date', schema: { type: 'date' } },
   attachment: { required: false, name: 'Attachment', schema: { type: 'array', items: 'attachment' } },
 } }] }] };
 
 const EDITMETA = { fields: {
   summary: { required: true, name: 'Summary', schema: { type: 'string' } },
-  customfield_10123: { required: false, name: 'Department', schema: { type: 'option' }, allowedValues: [{ id: '10101', value: 'Platform' }] },
-  customfield_10999: { required: false, name: 'Story points', schema: { type: 'number' } },
+  customfield_20001: { required: false, name: 'Department', schema: { type: 'option' }, allowedValues: [{ id: '10101', value: 'Platform' }] },
+  customfield_20003: { required: false, name: 'Story points', schema: { type: 'number' } },
 } };
 
 export function startMock(port = 18080) {
@@ -61,10 +61,10 @@ export function startMock(port = 18080) {
       // permanently empty, which would have hidden a bug in that report.
       if (u === '/rest/api/2/field') return j(res, [
         { id: 'summary', name: 'Summary', custom: false, schema: { type: 'string' } },
-        { id: 'customfield_10123', name: 'Department', custom: true,
-          schema: { type: 'option', custom: 'com.example.customfieldtypes:select', customId: 10123 } },
-        { id: 'customfield_10777', name: 'Release date', custom: true,
-          schema: { type: 'date', custom: 'com.example.customfieldtypes:datepicker', customId: 10777 } }]);
+        { id: 'customfield_20001', name: 'Department', custom: true,
+          schema: { type: 'option', custom: 'com.example.customfieldtypes:select', customId: 20001 } },
+        { id: 'customfield_20002', name: 'Release date', custom: true,
+          schema: { type: 'date', custom: 'com.example.customfieldtypes:datepicker', customId: 20002 } }]);
       if (u.includes('/createmeta')) return j(res, CREATEMETA);
       if (u.includes('/editmeta')) return j(res, EDITMETA);
       if (u === '/rest/api/2/myself') return j(res, { name: 'alice', displayName: 'Alice', emailAddress: 'a@x.com' });
@@ -73,8 +73,8 @@ export function startMock(port = 18080) {
       if (u === '/rest/api/2/project') return j(res, [{ key: 'PROJ', id: '10000', name: 'Demo' }]);
       if (u === '/rest/api/2/search') return j(res, { startAt: 0, maxResults: 50, total: 2,
         issues: [
-          { id: '1', key: 'PROJ-1', fields: { summary: 't', customfield_10123: { value: 'Platform' } } },
-          { id: '2', key: 'PROJ-2', fields: { summary: 't2', customfield_10777: '2026-01-01' } },
+          { id: '1', key: 'PROJ-1', fields: { summary: 't', customfield_20001: { value: 'Platform' } } },
+          { id: '2', key: 'PROJ-2', fields: { summary: 't2', customfield_20002: '2026-01-01' } },
         ] });
       if (u === '/rest/agile/1.0/board') return j(res, { values: [{ id: 7, name: 'B' }], isLast: true });
       if (/^\/rest\/agile\/1\.0\/board\/\d+\/sprint$/.test(u)) return j(res, { values: [{ id: 42, name: 'Sprint 1', state: 'active', originBoardId: 7 }], isLast: true });

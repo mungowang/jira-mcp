@@ -1,14 +1,18 @@
 {
-  "name": "jira-server-mcp",
+  "name": "@mohou/jira-mcp",
   "version": "1.0.0",
-  "private": true,
   "type": "module",
   "description": "MCP server for self-hosted Jira Server 8.x — entity-based core tools, plugin JSON declarations, bundled Zephyr Scale",
   "engines": {
     "node": ">=22.6"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "start": "node bin/jira-server.mjs",
+    "build": "esbuild src/index.ts --bundle --format=esm --platform=node --target=node22 --packages=external --outfile=dist/jira-server.mjs --log-level=warning",
+    "prepack": "npm run build",
     "test": "node --test test/*.test.mjs",
     "verify:live": "node test/live-verify.mjs",
     "verify:vendor": "bash scripts/verify-vendor.sh",
@@ -24,14 +28,14 @@
     "jira-server": "bin/jira-server.mjs"
   },
   "license": "MIT",
-  "author": "<YOUR NAME OR ORGANIZATION>",
+  "author": "MungoWang",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/example/jira-server-mcp.git"
+    "url": "git+https://github.com/MungoWang/jira-mcp.git"
   },
-  "homepage": "https://github.com/example/jira-server-mcp#readme",
+  "homepage": "https://github.com/MungoWang/jira-mcp#readme",
   "bugs": {
-    "url": "https://github.com/example/jira-server-mcp/issues"
+    "url": "https://github.com/MungoWang/jira-mcp/issues"
   },
   "keywords": [
     "mcp",
@@ -42,12 +46,16 @@
     "model-context-protocol"
   ],
   "files": [
-    "src",
+    "dist",
     "bin",
     "tools.d",
-    "scripts",
+    "jira.config.json",
     "README.md",
     "NOTICE.md",
-    "LICENSE"
-  ]
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  }
 }

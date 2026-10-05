@@ -168,7 +168,7 @@ describe('configuration does not depend on cwd', () => {
       assert.ok(r.ok, r.text);
       const sent = mock.log.find((l) => l.url === '/rest/api/2/issue');
       const body = JSON.parse(sent.body);
-      assert.deepEqual(body.fields.customfield_10123, { id: '10101' }, 'alias translated to the field id');
+      assert.deepEqual(body.fields.customfield_20001, { id: '10101' }, 'alias translated to the field id');
     } finally { srv.stop(); }
   });
 
@@ -176,7 +176,7 @@ describe('configuration does not depend on cwd', () => {
     const srv = await startServer(ENV, { cwd: '/tmp' });
     try {
       const r = await srv.callTool('jira_describe_create', { projectKey: 'PROJ', issueTypeName: 'Task' });
-      assert.match(r.text, /customfield_10123\(Department\)/);
+      assert.match(r.text, /customfield_20001\(Department\)/);
     } finally { srv.stop(); }
   });
 });

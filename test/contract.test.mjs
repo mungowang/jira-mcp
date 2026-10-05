@@ -53,7 +53,7 @@ describe('field discovery (no static mapping)', () => {
   test('describe_create renders shapes, allowed values and requiredness', async () => {
     const r = await srv.callTool('jira_describe_create', CTX);
     assert.ok(r.ok, r.text);
-    assert.match(r.text, /customfield_10123\(Department\)/, 'field carries its business alias');
+    assert.match(r.text, /customfield_20001\(Department\)/, 'field carries its business alias');
     assert.match(r.text, /\{"id":"\.\.\."\}/, 'option value shape');
     assert.match(r.text, /Platform\(10101\)/, 'allowed values include ids');
     assert.match(r.text, /Required/);
@@ -62,7 +62,7 @@ describe('field discovery (no static mapping)', () => {
 
   test('describe_edit only reports fields editable on this issue', async () => {
     const r = await srv.callTool('jira_describe_edit', { key: 'PROJ-1' });
-    assert.match(r.text, /customfield_10999\(Story points\)/);
+    assert.match(r.text, /customfield_20003\(Story points\)/);
     assert.match(r.text, /123/, 'number value shape');
   });
 });
@@ -76,8 +76,8 @@ describe('writes', () => {
     assert.ok(r.ok, r.text);
     const sent = mock.log.find((l) => l.url === '/rest/api/2/issue');
     const body = JSON.parse(sent.body);
-    assert.deepEqual(body.fields.customfield_10123, { id: '10101' });
-    assert.equal(body.fields.customfield_10777, '2026-03-01');
+    assert.deepEqual(body.fields.customfield_20001, { id: '10101' });
+    assert.equal(body.fields.customfield_20002, '2026-03-01');
     assert.ok(!('Department' in body.fields), 'aliases never reach Jira');
   });
 
