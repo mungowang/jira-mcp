@@ -9,7 +9,7 @@
 //     node_modules: ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING), so an install runs the bundle.
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const [major, minor] = process.versions.node.split('.').map(Number);
 const MIN_MAJOR = 22, MIN_MINOR = 6;
@@ -35,4 +35,6 @@ if (!existsSync(entry)) {
   process.exit(1);
 }
 
-await import(entry);
+// A `file://` URL, not a path: on Windows `C:\...` reads as a URL scheme and Node refuses it
+// (ERR_UNSUPPORTED_ESM_URL_SCHEME), while a POSIX path happens to work.
+await import(pathToFileURL(entry).href);

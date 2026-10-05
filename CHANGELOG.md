@@ -1,3 +1,13 @@
+## 1.0.6
+
+### Fix: the shim could not start on Windows
+
+`bin/jira-server.mjs` ended with `await import(entry)` and `entry` is an absolute path. On Windows
+that path reads as a URL scheme (`C:`), so Node refused it with `ERR_UNSUPPORTED_ESM_URL_SCHEME`
+and the server exited before it spoke MCP - which a client reports as `Connection closed`, with no
+hint of the cause. A POSIX path happens to be accepted, so only Windows was affected. The entry is
+imported through `pathToFileURL(entry).href` now.
+
 # Changelog
 
 ## 1.0.5
