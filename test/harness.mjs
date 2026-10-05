@@ -41,7 +41,13 @@ export async function startServer(env = {}, { timeoutMs = 30_000, cwd = ROOT } =
       const r = await request('tools/call', { name, arguments: args });
       if (r.error) return { ok: false, text: r.error.message ?? JSON.stringify(r.error) };
       const text = (r.result.content ?? []).map((c) => c.text).join('\n');
-      return { ok: !r.result.isError, text, structuredContent: r.result.structuredContent };
+      return {
+        ok: !r.result.isError, text,
+        // The two channels MCP defines: `content` is what every client reads, `structuredContent`
+        // is the typed one a tool may add (and must add once it declares an outputSchema).
+        contentTypes: (r.result.content ?? []).map((c) => c.type),
+        structuredContent: r.result.structuredContent,
+      };
     },
   };
 }
