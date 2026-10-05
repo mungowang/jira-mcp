@@ -295,6 +295,24 @@ JIRA_BASE_URL=... JIRA_USERNAME=... JIRA_PASSWORD=... npm run verify:live
 
 **"跳过"通常是插件没装或需要真实测试数据,不代表实现有问题。** 运行前会先做一轮**发现**:当前用户、项目、issue、附件 id、JSM 服务台 id、Zephyr 的用例/循环/计划 key、board、sprint。这些 id 决定了有多少工具能被真正验证——发现逻辑抽在 [`test/discover.mjs`](test/discover.mjs) 里并有独立测试,因为一旦它退化,验证覆盖面会静默缩水。
 
+### 观察 Zephyr 的输出契约
+
+Zephyr 那 54 个工具来自 vendored 上游代码,返回的是**文本块里的 JSON**(`content[0].text`),既没有 `structuredContent` 也没有 `outputSchema`。想给它们挂 schema,必须先知道每个工具真实返回什么 —— 因为一旦声明了 `outputSchema`,SDK 就要求**每次成功调用都交出匹配的 `structuredContent`**,形状不符会直接抛错(`server/mcp.js` 里就是 `throw new McpError(...)`),把一个本来能用的工具变成坏的工具。裸数组返回更是结构上就不可能(必须以对象为根)。
+
+`ZEPHYR_OUTPUT_CHECKS=1` 是为这件事准备的**只观察**模式:每次成功调用后,把返回按该工具映射的实体做一次 `safeParse`,结果写到 stderr。**它不改变任何返回值**;不设这个变量时包装器根本不安装。
+
+```bash
+ZEPHYR_OUTPUT_CHECKS=1 npm run verify:live
+```
+
+```
+[zephyr-output] ok       get_test_case -> E.testCase (object)
+[zephyr-output] ok       get_custom_field_definitions -> E.customFieldDefinition (array(2 items) all match)
+[zephyr-output] MISMATCH some_tool -> E.testResult: id: Expected number, received string
+```
+
+`MISMATCH` 说明那个映射(或那个实体)不对 —— **在搞清楚之前不要给它挂 `outputSchema`**。映射表在 [`src/entities/zephyr/output-checks.ts`](src/entities/zephyr/output-checks.ts),观察结果同时写进 `verify-report.md`。
+
 **一次运行拿全部结果**:加 `VERIFY_PROBE_PATHS=1`,验证结束后会顺便探测候选插件端点,并把结果写进同一份 `verify-report.md`:
 
 ```bash

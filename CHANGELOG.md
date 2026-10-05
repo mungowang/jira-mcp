@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.0.3
+
+### An observation-only mode for the Zephyr output contract
+
+The 54 Zephyr tools come from vendored upstream code and answer `{ content: [{ type: 'text', text }] }`
+where `text` is `JSON.stringify(data, null, 2)` - the payload *is* JSON, it is just never exposed a
+second time as `structuredContent`. Declaring an `outputSchema` obliges a tool to supply
+`structuredContent`, and the SDK throws when it is missing or fails to validate, so attaching one
+to a tool whose payload is actually an array (or `null` where the entity says string) would turn a
+working tool into a failing one.
+
+`ZEPHYR_OUTPUT_CHECKS=1` answers that question before anything is attached. It parses what each
+mapped tool returned, validates it against the entity the tool is believed to produce, and reports
+the outcome on stderr - **without touching the result**. With the flag unset the wrapper is not
+even installed. `npm run verify:live` runs it and puts the result in `verify-report.md`.
+
+Nothing is attached to any Zephyr tool yet: this step exists to produce the evidence first. The
+tool-to-entity mapping lives in `src/entities/zephyr/output-checks.ts`.
+
+### Fixed
+
+- The mock lied about two more root types. `get_custom_field_definitions` and
+  `get_test_cases_linked_to_issue` answer **bare arrays** on a real instance; the generic
+  `/rest/tests/1.0` fallback made them objects. Since the output-contract check exists to measure
+  exactly that, a wrong mock would have produced false confidence.
+
 ## 1.0.2
 
 ### Every tool, parameter and output field now describes itself

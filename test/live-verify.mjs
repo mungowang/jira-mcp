@@ -158,6 +158,22 @@ if (process.env.CAPTURE === '1') {
 
 srv.stop();
 
+// -- phase 7 (opt-in): Zephyr output contract ---------------------------------
+// Observation only. The server validated each Zephyr payload against the entity that tool is
+// believed to produce and reported the outcome on stderr; nothing about the calls changed.
+const outputChecks = process.env.ZEPHYR_OUTPUT_CHECKS === '1'
+  ? srv.stderr().split('\n').filter((l) => l.startsWith('[zephyr-output]'))
+  : [];
+if (process.env.ZEPHYR_OUTPUT_CHECKS === '1') {
+  console.log(`\n-- Zephyr output contract (observation only) --`);
+  if (outputChecks.length === 0) {
+    console.log('  nothing observed: no mapped tool was actually called (most are writes, or ids were not discovered)');
+  }
+  for (const line of outputChecks) console.log(`  ${line.replace('[zephyr-output] ', '')}`);
+  const bad = outputChecks.filter((l) => l.includes('MISMATCH'));
+  console.log(`  ${outputChecks.length - bad.length}/${outputChecks.length} match the entity they are mapped to`);
+}
+
 // -- report -------------------------------------------------------------------
 console.log(`\nResult: ${ok} passed / ${fail} failed / ${skip} skipped`);
 console.log('Note: "skipped" usually means the plugin is absent or real test data is needed - not a defect.');
@@ -173,6 +189,11 @@ const md = [
   '| Tool | Result | Detail |', '|---|---|---|',
   ...rows.map((r) => `| \`${r.name}\` | ${r.status === 'ok' ? 'PASS' : r.status === 'skip' ? 'SKIP' : 'FAIL'} | ${r.detail} |`),
   ...(probeRows.length ? ['', '## Plugin path probe', '', '```', ...probeRows, '```'] : []),
+  ...(outputChecks.length ? ['', '## Zephyr output contract (observation only)', '',
+    'Each Zephyr payload was validated against the entity that tool is mapped to. Nothing was',
+    'changed by the check; a MISMATCH means the mapping (or the entity) is wrong, and that tool',
+    'must not declare an `outputSchema` until it is understood.', '',
+    '```', ...outputChecks, '```'] : []),
   '', `> Read-only tools only; nothing was written.`, '',
 ].join('\n');
 writeFileSync('verify-report.md', md);

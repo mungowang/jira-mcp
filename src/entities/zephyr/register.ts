@@ -2,6 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { loadConfig } from './config.ts';
 import { registerAllTools } from './tools/index.ts';
 import { setLogLevel } from './log.ts';
+import { observeOutputs } from './output-checks.ts';
 
 export type ZephyrStatus = { enabled: true; baseUrl: string; tools: number } | { enabled: false; reason: string };
 
@@ -34,7 +35,9 @@ export function registerZephyr(server: McpServer): ZephyrStatus {
     return { enabled: false, reason: `Zephyr not configured, skipped: ${err instanceof Error ? err.message : String(err)}` };
   }
   setLogLevel(cfg.logLevel);
-  registerAllTools(server, cfg);
+  // observeOutputs is a no-op unless ZEPHYR_OUTPUT_CHECKS=1: it then validates each payload against
+  // the entity the tool is believed to produce and reports the result, without changing any result.
+  registerAllTools(observeOutputs(server), cfg);
   return { enabled: true, baseUrl: cfg.baseUrl, tools: countTools(server) - before };
 }
 

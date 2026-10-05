@@ -138,6 +138,33 @@ export function startMock(port = 18080) {
         res.setHeader('content-type', 'text/plain');
         return res.end('probe attachment content\n');
       }
+      // The custom-field DEFINITIONS endpoint answers a BARE ARRAY on a real instance (23 items on
+      // the reference one). Returning an object here would make the observation mode report the
+      // wrong root type for the tool, which is exactly what it exists to measure.
+      // Traceability: this endpoint answers a BARE ARRAY too (one entry per LINK, so a case linked
+      // twice appears twice). A generic object fallback here would make the output-contract check
+      // report the wrong root type for the tool.
+      if (/^\/rest\/atm\/1\.0\/issuelink\/[^/]+\/testcases$/.test(u)) {
+        return j(res, [
+          { id: 1, key: 'PROJ-T1', name: 'probe', projectKey: 'PROJ', status: 'Draft', lastTestResultStatus: 'Pass' },
+        ]);
+      }
+      if (/^\/rest\/tests\/1\.0\/project\/\d+\/customfields\/\w+$/.test(u)) {
+        return j(res, [
+          { id: 11, name: 'Department', type: 'SINGLE_CHOICE', index: 0, projectId: 10000, required: false, archived: false,
+            options: [{ id: 101, name: 'Platform', index: 0, archived: false }] },
+          { id: 12, name: 'Automation', type: 'CHECKBOX', index: 1, projectId: 10000, required: false, archived: false, options: [] },
+        ]);
+      }
+      // The folder tree is an object rooted at the project, not at a folder.
+      if (/^\/rest\/tests\/1\.0\/project\/\d+\/foldertree\/\w+$/.test(u)) {
+        return j(res, { projectId: 10000, itemsCount: 2,
+          children: [{ id: 5, projectId: 10000, index: 0, name: 'Regression', itemsCount: 2,
+            children: [{ id: 6, projectId: 10000, parentId: 5, index: 0, name: 'Login', itemsCount: 2 }] }] });
+      }
+      if (/^\/rest\/tests\/1\.0\/project\/\d+\/(testcasestatus|testcasepriority)$/.test(u)) {
+        return j(res, [{ id: 21, name: 'Draft', index: 0, projectId: 10000, color: '#cfcfc4', isDefault: true, i18nKey: 'X' }]);
+      }
       if (u.startsWith('/rest/atm/1.0') || u.startsWith('/rest/tests/1.0')) return j(res, { id: 1, key: 'PROJ-T1', values: [], items: [] });
 
       // Generic issue route last, so specific sub-resources above win.
